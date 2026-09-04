@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
 
-# Perth watermarker patch for ARM64 / Linux
+# Perth watermarker compatibility patch for ARM64 / Linux
 import types
 class DummyWatermarker:
     def __init__(self, *args, **kwargs): pass
@@ -43,6 +43,26 @@ CONFIG_FILE = BASE_DIR / "config.json"
 VOICES_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
+def find_voice_file(voice_name: str) -> Optional[Path]:
+    """Case-insensitive voice finder for Linux and Windows."""
+    v_clean = voice_name.lower().replace("!", "").strip()
+    supported_exts = [".wav", ".mp3", ".ogg", ".flac"]
+    
+    # 1. Search primary voices directory
+    if VOICES_DIR.exists():
+        for f in VOICES_DIR.iterdir():
+            if f.is_file() and f.stem.lower() == v_clean and f.suffix.lower() in supported_exts:
+                return f
+
+    # 2. Check legacy Chatterbox64 voices directory as fallback
+    alt_dir = Path.home() / "Documents" / "Chatterbox64" / "voices"
+    if alt_dir.exists():
+        for f in alt_dir.iterdir():
+            if f.is_file() and f.stem.lower() == v_clean and f.suffix.lower() in supported_exts:
+                return f
+
+    return None
+
 def adjust_speed(wav_np: np.ndarray, sr: int, speed: float) -> np.ndarray:
     if abs(speed - 1.0) < 0.02 or speed <= 0:
         return wav_np
@@ -60,10 +80,6 @@ def adjust_speed(wav_np: np.ndarray, sr: int, speed: float) -> np.ndarray:
             return wav_np
 
 def parse_segments(text: str) -> List[Tuple[str, str, Optional[float]]]:
-    """
-    Robust segment parser that does NOT get broken by normal punctuation (like Hello!).
-    Only splits when an actual voice command tag like !apple or !bella-1.25 is found.
-    """
     text = text.strip()
     if not text:
         return [("default", "", None)]
@@ -144,19 +160,15 @@ class ChatterboxNanoEngine(BaseTTSEngine):
         exagg = float(params.get("exaggeration", 0.95))
         temp = float(params.get("temperature", 1.15))
 
-        ref_path = self.voice_paths.get(voice_name.lower())
-        if not ref_path or not ref_path.exists():
-            for ext in [".wav", ".mp3", ".ogg", ".flac"]:
-                cand = VOICES_DIR / f"{voice_name}{ext}"
-                if cand.exists():
-                    ref_path = cand
-                    break
+        ref_path = find_voice_file(voice_name)
+        if not ref_path:
+            ref_path = self.voice_paths.get(voice_name.lower())
 
         if self.model is None:
             self.init_model()
 
         if self.model is not None and ref_path and ref_path.exists():
-            logger.info(f"[Chatterbox Clone] Synthesizing '{voice_name}' using custom reference audio: {ref_path.name}")
+            logger.info(f"[Chatterbox Clone] Synthesizing '{voice_name}' using custom reference: {ref_path.name}")
             wav = self.model.generate(
                 text=text,
                 audio_prompt_path=str(ref_path),
@@ -176,7 +188,7 @@ class CosyVoice2Engine(BaseTTSEngine):
         self.sr = 24000
 
     def init_model(self):
-        logger.info("CosyVoice 2 selected.")
+        logger.info("CosyVoice 2 initialized (routing to Chatterbox).")
 
     def generate(self, text: str, voice_name: str, params: Optional[Dict[str, Any]] = None) -> np.ndarray:
         return engine_mgr.engines["chatterbox_nano"].generate(text, voice_name, params)
@@ -235,7 +247,6 @@ class EngineManager:
             logger.info(f"Switched active custom cloning engine to: {engine_name}")
 
     def reencode_all_voices(self):
-        # CRITICAL FIX: Only register custom voices into custom cloning engines, NEVER Kokoro!
         for eng_name, eng in self.engines.items():
             if eng_name != "kokoro":
                 if hasattr(eng, "voice_paths"): eng.voice_paths.clear()
@@ -256,11 +267,11 @@ class EngineManager:
         target_sr = 24000
         combined_audio = []
 
-        chosen_default = "swifty"
+        chosen_default = "apple"
         if CONFIG_FILE.exists():
             try:
                 cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-                chosen_default = cfg.get("stream", {}).get("default_voice", "swifty").lower().replace("!", "").strip()
+                chosen_default = cfg.get("stream", {}).get("default_voice", "apple").lower().replace("!", "").strip()
             except Exception:
                 pass
 
@@ -275,7 +286,6 @@ class EngineManager:
             if v_clean == "default" or not v_clean:
                 v_clean = chosen_default
 
-            # STRICT CHECK: Kokoro voices are strictly in KOKORO_VOICES
             is_kokoro = (v_clean in KOKORO_VOICES)
 
             if is_kokoro:
@@ -283,7 +293,6 @@ class EngineManager:
                 seg_wav = kokoro_engine.generate(seg_text, v_clean, p)
                 seg_sr = kokoro_engine.sr
             else:
-                # Custom Cloned Voice (apple, bane, etc.) -> Chatterbox-Turbo
                 act_eng = self.get_active()
                 p = self.engine_params.get(self.active_engine_name, {}).copy()
 
