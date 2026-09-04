@@ -1,11 +1,11 @@
 {
   "stream_reading": true,
   "stream": {
-    "default_voice": "swifty",
+    "default_voice": "heart",
     "read_mode": "all"
   },
   "engine": {
-    "active": "cosyvoice2",
+    "active": "kokoro",
     "device": "cuda",
     "compile": false
   },
@@ -15,23 +15,23 @@
   },
   "test_phrase": "Hello! This is [voice] testing in-memory speed on VoiceForge.",
   "engine_params": {
-    "chatterbox_nano": {
-      "exaggeration": 0.95,
-      "cfg_weight": 0.5,
-      "temperature": 1.15
+    "kokoro": {
+      "speed": 1.0
     },
     "cosyvoice2": {
       "instruct": "speak in a natural clear tone",
       "speed": 1.0,
       "streaming": false
     },
+    "chatterbox_nano": {
+      "exaggeration": 0.95,
+      "cfg_weight": 0.5,
+      "temperature": 1.15
+    },
     "qwen3_tts": {
       "emotion": "neutral",
       "speed": 1.0,
       "language": "auto"
-    },
-    "kokoro": {
-      "speed": 1.0
     }
   },
   "kokoro_languages": {
@@ -52,7 +52,7 @@
     "muted": false
   },
   "reader": {
-    "color": "#00FF00",
+    "color": "#000000",
     "font": "Impact",
     "size": 32,
     "text_color": "#FFFFFF"
@@ -67,7 +67,18 @@
       "enabled": true
     }
   ],
-  "sources": [],
+  "sources": [
+    {
+      "id": "rumble_1788556705564",
+      "platform": "Rumble",
+      "target": "https://rumble.com/v7f32o2-ayo-its-friday-my-doodsminecraft-then-gta-4-in-4kget-in-hereits-about-to-ge.html?e9s=src_v1_cllr",
+      "chat_url": "https://rumble.com/v7f32o2-ayo-its-friday-my-doodsminecraft-then-gta-4-in-4kget-in-hereits-about-to-ge.html?e9s=src_v1_cllr",
+      "token": "",
+      "status": "connecting",
+      "message_count": 0,
+      "connected_at": 1788556705.564734
+    }
+  ],
   "voice_profiles": {},
   "timed_messages": [
     {
@@ -77,8 +88,8 @@
       "voice": "ron",
       "message": "!ron Welcome everyone to the stream! Enjoy the broadcast.",
       "enabled": true,
-      "next_fire": 1788410000.0,
-      "last_run": "Never"
+      "next_fire": 1788557163.1011782,
+      "last_run": "21:16:03"
     }
   ],
   "event_triggers": []
