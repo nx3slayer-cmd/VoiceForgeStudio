@@ -86,7 +86,7 @@ $Packages = @(
 
 Write-Host "Installing Zero-Shot Cloning Engine (Chatterbox-Turbo)..." -ForegroundColor Yellow
 & $PythonExe -m pip install chatterbox-tts --no-deps --no-warn-script-location
-& $PythonExe -m pip install conformer diffusers omegaconf "librosa<1.0.0" s3tokenizer pyloudnorm pykakasi --no-warn-script-location
+& $PythonExe -m pip install conformer diffusers omegaconf "librosa<1.0.0" audioread "ml-dtypes==0.5.1" s3tokenizer pyloudnorm pykakasi --no-warn-script-location
 
 # 6. Pre-download Chatterbox-Turbo model weights (No Token Required)
 Write-Host "`n[6/7] Downloading Zero-Shot Cloning Model Weights..." -ForegroundColor Yellow
