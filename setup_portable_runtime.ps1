@@ -1,5 +1,5 @@
 # ===========================================================================
-# VoiceForge Studio — Zero-Install Portable Runtime Provisioner
+# VoiceForge Studio — Zero-Install Portable Runtime Provisioner (Windows 11)
 # ===========================================================================
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
@@ -28,7 +28,7 @@ if (-not (Test-Path $PythonExe)) {
     Expand-Archive -Path $ZipDest -DestinationPath $RuntimeDir -Force
     Remove-Item $ZipDest -Force
 
-    # Critical: Patch python311._pth to enable site-packages & pip
+    # Patch python311._pth to enable site-packages & pip
     $PthFile = Get-ChildItem -Path $RuntimeDir -Filter "*._pth" | Select-Object -First 1
     if ($PthFile) {
         Write-Host "[3/6] Patching $($PthFile.Name) to enable 'import site'..." -ForegroundColor Yellow
@@ -59,7 +59,7 @@ if (-not (Test-Path $PythonExe)) {
 }
 
 # 5. Install PyTorch with CUDA 12.1 and Backend Libraries
-Write-Host "`n[5/6] Installing CUDA-enabled PyTorch & Framework Dependencies..." -ForegroundColor Yellow
+Write-Host "`n[5/7] Installing CUDA-enabled PyTorch & Framework Dependencies..." -ForegroundColor Yellow
 
 $PipArgs = @(
     "-m", "pip", "install", "--upgrade",
@@ -70,7 +70,7 @@ $PipArgs = @(
 Write-Host "Installing PyTorch (CUDA 12.1)..." -ForegroundColor Yellow
 & $PythonExe -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121 --no-warn-script-location
 
-Write-Host "Installing Application Dependencies..." -ForegroundColor Yellow
+Write-Host "Installing Core Dependencies..." -ForegroundColor Yellow
 $Packages = @(
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.30.0",
@@ -84,13 +84,28 @@ $Packages = @(
 )
 & $PythonExe -m pip install $Packages --no-warn-script-location
 
-# 6. Install Portable Playwright Chromium
-Write-Host "`n[6/6] Installing Isolated Playwright Chromium..." -ForegroundColor Yellow
+Write-Host "Installing Zero-Shot Cloning Engine (Chatterbox-Turbo)..." -ForegroundColor Yellow
+& $PythonExe -m pip install chatterbox-tts --no-deps --no-warn-script-location
+& $PythonExe -m pip install conformer diffusers omegaconf "librosa<1.0.0" s3tokenizer pyloudnorm pykakasi --no-warn-script-location
+
+# 6. Pre-download Chatterbox-Turbo model weights (No Token Required)
+Write-Host "`n[6/7] Downloading Zero-Shot Cloning Model Weights..." -ForegroundColor Yellow
+$ModelDownloadScript = @"
+from huggingface_hub import snapshot_download
+from pathlib import Path
+dest = Path('pretrained_models/chatterbox-turbo')
+dest.mkdir(parents=True, exist_ok=True)
+snapshot_download(repo_id='ResembleAI/chatterbox-turbo', local_dir=str(dest), token=False)
+print('✓ Chatterbox-Turbo model downloaded.')
+"@
+& $PythonExe -c $ModelDownloadScript
+
+# 7. Install Portable Playwright Chromium
+Write-Host "`n[7/7] Installing Isolated Playwright Chromium..." -ForegroundColor Yellow
 $BrowsersDir = Join-Path $RuntimeDir "playwright-browsers"
 $env:PLAYWRIGHT_BROWSERS_PATH = $BrowsersDir
-
 & $PythonExe -m playwright install chromium
 
 Write-Host "`n===========================================================" -ForegroundColor Green
-Write-Host "✓ Portable Runtime Setup Complete!" -ForegroundColor Green
+Write-Host "✓ Windows Portable Runtime Setup Complete!" -ForegroundColor Green
 Write-Host "===========================================================" -ForegroundColor Green
