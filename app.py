@@ -529,25 +529,9 @@ async def get_voices():
 
 @app.get("/api/voices/{name}/preview")
 async def preview_voice(name: str, phrase: Optional[str] = None):
-    from kokoro_engine import kokoro_engine, KOKORO_VOICES
-    v_clean = name.replace("!", "").lower()
     raw_phrase = phrase if phrase and phrase.strip() else engine_mgr.test_phrase
     text = raw_phrase.replace("[voice]", name)
-
-    if v_clean in kokoro_engine.voice_audio_cache or v_clean in KOKORO_VOICES:
-        wav_np = kokoro_engine.generate(text, v_clean)
-        sr = kokoro_engine.sr
-    else:
-        active_eng = engine_mgr.get_active()
-        if v_clean not in active_eng.voice_audio_cache:
-            matched = next((f for f in VOICES_DIR.iterdir() if f.stem.lower() == v_clean), None)
-            if matched:
-                active_eng.encode_voice(v_clean, matched, tier=engine_mgr.memory_tier)
-            else:
-                raise HTTPException(status_code=404, detail="Voice not found")
-        wav_np = active_eng.generate(text, v_clean, engine_mgr.engine_params.get(engine_mgr.active_engine_name, {}))
-        sr = active_eng.sr
-
+    wav_np, sr = await asyncio.to_thread(engine_mgr.generate_multi, f"!{name} {text}", 1.0)
     buf = io.BytesIO()
     sf.write(buf, wav_np, sr, format="WAV")
     buf.seek(0)
