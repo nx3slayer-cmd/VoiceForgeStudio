@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VoiceForge — Chroma-Key Reader</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #00FF00;
+      font-family: Impact, Arial, sans-serif;
+    }
+    
+    .toolbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(10px);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 100;
+      color: #fff;
+      font-size: 0.82rem;
+      flex-wrap: wrap;
+    }
+    .toolbar label { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+    input[type="color"] { border: none; width: 28px; height: 28px; border-radius: 4px; cursor: pointer; background: none; }
+    input[type="range"] { width: 90px; cursor: pointer; }
+    select {
+      background: #1e293b;
+      color: #fff;
+      border: 1px solid #475569;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      outline: none;
+      max-width: 190px;
+      cursor: pointer;
+    }
+    select:focus { border-color: #38bdf8; }
+    
+    .reader-content {
+      width: 100%;
+      height: 100%;
+      padding: 60px 24px 24px 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .chat-line {
+      line-height: 1.35;
+      font-weight: 700;
+      text-shadow: 2px 2px 0px #000, -2px -2px 0px #000, 2px -2px 0px #000, -2px 2px 0px #000;
+      color: #FFFFFF;
+      animation: fadeIn 0.15s ease-out;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+
+    .tag-badge {
+      font-size: 0.72em;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-right: 6px;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    }
+    .tag-rumble { background: #85c742; color: #000; }
+    .tag-x { background: #000000; color: #38bdf8; border: 1px solid #38bdf8; }
+    .tag-kick { background: #53fc18; color: #000; }
+    .tag-twitch { background: #9146ff; color: #fff; }
+    .tag-blaze { background: #f97316; color: #fff; }
+    .tag-youtube { background: #ff0000; color: #fff; }
+
+    .chatter-name { font-weight: 800; margin-right: 6px; color: #38bdf8; }
+    .msg-body { font-weight: 600; color: #FFFFFF; }
+
+    .paused-badge {
+      position: fixed;
+      top: 50px;
+      right: 16px;
+      background: rgba(15, 23, 42, 0.85);
+      color: #f87171;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      display: none;
+      z-index: 99;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <label>BG Key: <input type="color" id="bg-color" value="#00FF00"></label>
+    <label>Text: <input type="color" id="text-color" value="#FFFFFF"></label>
+    <label>Font: <select id="font-select"><option>Loading Fonts…</option></select></label>
+    <label>Size: <input type="range" id="size-slider" min="12" max="96" value="32"><span id="size-val">32px</span></label>
+    <button onclick="document.getElementById('feed').innerHTML=''" style="background:#334155;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;">Clear</button>
+  </div>
+
+  <div class="paused-badge" id="paused-badge">⏸ TTS READING PAUSED</div>
+  <div class="reader-content" id="feed"></div>
+  <audio id="reader-audio-node" preload="auto"></audio>
+
+  <script>
+    const feed = document.getElementById("feed");
+    const bgColor = document.getElementById("bg-color");
+    const textColor = document.getElementById("text-color");
+    const fontSelect = document.getElementById("font-select");
+    const sizeSlider = document.getElementById("size-slider");
+    const pausedBadge = document.getElementById("paused-badge");
+    const audioNode = document.getElementById("reader-audio-node");
+
+    const isEmbedded = (window.self !== window.top);
+
+    const savedBg = localStorage.getItem("vf_reader_bg") || "#00FF00";
+    const savedText = localStorage.getItem("vf_reader_text") || "#FFFFFF";
+    const savedSize = localStorage.getItem("vf_reader_size") || "32";
+    let currentFont = localStorage.getItem("vf_reader_font") || "Impact";
+
+    document.body.style.backgroundColor = savedBg;
+    bgColor.value = savedBg;
+    textColor.value = savedText;
+    sizeSlider.value = savedSize;
+    document.getElementById("size-val").textContent = savedSize + "px";
+
+    let speechQueue = [];
+    let isPlayingAudio = false;
+
+    function applyFont(fontName) {
+      currentFont = fontName;
+      document.body.style.fontFamily = `"${fontName}", sans-serif`;
+      document.querySelectorAll(".chat-line, .msg-body").forEach(el => {
+        el.style.fontFamily = `"${fontName}", sans-serif`;
+      });
+    }
+
+    async function loadSystemFonts() {
+      try {
+        const res = await fetch("/api/fonts");
+        const data = await res.json();
+        const fonts = data.fonts || ["Impact", "Arial", "Roboto", "Inter", "Segoe UI", "Ubuntu", "Courier New", "Georgia"];
+        
+        fontSelect.innerHTML = "";
+        fonts.forEach(f => {
+          const opt = document.createElement("option");
+          opt.value = f;
+          opt.textContent = f;
+          if (f.toLowerCase() === currentFont.toLowerCase()) {
+            opt.selected = true;
+          }
+          fontSelect.appendChild(opt);
+        });
+
+        applyFont(fontSelect.value || currentFont);
+      } catch (e) {
+        console.error("Failed to load system fonts:", e);
+      }
+    }
+
+    fontSelect.onchange = (e) => {
+      const selected = e.target.value;
+      applyFont(selected);
+      localStorage.setItem("vf_reader_font", selected);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ cmd: "set_font", value: selected }));
+      }
+    };
+
+    bgColor.oninput = (e) => {
+      document.body.style.backgroundColor = e.target.value;
+      localStorage.setItem("vf_reader_bg", e.target.value);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ cmd: "set_color", value: e.target.value }));
+      }
+    };
+
+    textColor.oninput = (e) => {
+      localStorage.setItem("vf_reader_text", e.target.value);
+      document.querySelectorAll(".chat-line, .msg-body").forEach(el => el.style.color = e.target.value);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ cmd: "set_text_color", value: e.target.value }));
+      }
+    };
+
+    sizeSlider.oninput = (e) => {
+      document.getElementById("size-val").textContent = e.target.value + "px";
+      localStorage.setItem("vf_reader_size", e.target.value);
+      document.querySelectorAll(".chat-line").forEach(el => el.style.fontSize = e.target.value + "px");
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ cmd: "set_size", value: e.target.value }));
+      }
+    };
+
+    function playNextAudio() {
+      if (isEmbedded || speechQueue.length === 0) {
+        isPlayingAudio = false;
+        return;
+      }
+      isPlayingAudio = true;
+      const nextUrl = speechQueue.shift();
+
+      let finished = false;
+      const onDone = () => {
+        if (finished) return;
+        finished = true;
+        audioNode.onended = null;
+        audioNode.onerror = null;
+        playNextAudio();
+      };
+
+      audioNode.onended = onDone;
+      audioNode.onerror = onDone;
+
+      setTimeout(() => {
+        if (!finished && audioNode.paused) {
+          onDone();
+        }
+      }, 15000);
+
+      audioNode.src = nextUrl;
+      audioNode.volume = 1.0;
+      audioNode.play().catch(e => {
+        console.log("Reader audio notice:", e);
+        setTimeout(onDone, 400);
+      });
+    }
+
+    function enqueueAudio(url) {
+      if (isEmbedded) return;
+      speechQueue.push(url);
+      if (!isPlayingAudio) playNextAudio();
+    }
+
+    window.addEventListener("click", () => {
+      if (!isEmbedded) {
+        audioNode.play().catch(()=>{});
+        if (speechQueue.length > 0 && !isPlayingAudio) {
+          playNextAudio();
+        }
+      }
+    });
+
+    function getPlatformBadge(source) {
+      const s = (source || "").toLowerCase();
+      if (s.includes("x.com") || s.includes("twitter") || s === "x") return `<span class="tag-badge tag-x">X.COM</span>`;
+      if (s.includes("rumble")) return `<span class="tag-badge tag-rumble">RUMBLE</span>`;
+      if (s.includes("kick")) return `<span class="tag-badge tag-kick">KICK</span>`;
+      if (s.includes("twitch")) return `<span class="tag-badge tag-twitch">TWITCH</span>`;
+      if (s.includes("blaze")) return `<span class="tag-badge tag-blaze">BLAZE</span>`;
+      if (s.includes("youtube")) return `<span class="tag-badge tag-youtube">YOUTUBE</span>`;
+      return `<span class="tag-badge" style="background:#475569; color:#fff;">${source.toUpperCase()}</span>`;
+    }
+
+    function renderLine(item) {
+      if (!item) return;
+      const sender = item.sender || "Viewer";
+      let rawMsg = item.clean_text || item.text || item.raw_message || item.message || "";
+      
+      if (rawMsg.toLowerCase().startsWith(sender.toLowerCase() + ":")) {
+        rawMsg = rawMsg.substring(sender.length + 1).trim();
+      } else if (rawMsg.toLowerCase().startsWith(sender.toLowerCase())) {
+        rawMsg = rawMsg.substring(sender.length).replace(/^[:\s\-]+/, '').trim();
+      }
+
+      if (!rawMsg) return;
+
+      const source = (item.platform || item.source || "Stream").toLowerCase();
+      const timeStr = item.time || new Date().toLocaleTimeString();
+
+      const line = document.createElement("div");
+      line.className = "chat-line";
+      line.style.fontSize = sizeSlider.value + "px";
+      line.style.fontFamily = `"${currentFont}", sans-serif`;
+      line.innerHTML = `
+        <span style="opacity:0.8;font-weight:400;margin-right:6px;font-family:sans-serif;">[${timeStr}]</span>
+        ${getPlatformBadge(source)}
+        <span class="chatter-name">${sender}:</span>
+        <span class="msg-body" style="color:${textColor.value}; font-family:'${currentFont}', sans-serif;">${rawMsg}</span>
+      `;
+      feed.appendChild(line);
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${location.host}/ws/reader`);
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === "init") {
+          feed.innerHTML = "";
+          (data.history || []).forEach(renderLine);
+          if (data.reader) {
+            if (data.reader.color) { document.body.style.backgroundColor = data.reader.color; bgColor.value = data.reader.color; }
+            if (data.reader.text_color) { textColor.value = data.reader.text_color; }
+            if (data.reader.size) { sizeSlider.value = data.reader.size; document.getElementById("size-val").textContent = data.reader.size + "px"; }
+            if (data.reader.font) { currentFont = data.reader.font; applyFont(currentFont); }
+          }
+          if (pausedBadge) pausedBadge.style.display = data.reading ? "none" : "block";
+        } else if (data.type === "chat") {
+          renderLine(data);
+        } else if (data.type === "status") {
+          if (pausedBadge) pausedBadge.style.display = data.reading ? "none" : "block";
+        } else if (data.type === "audio_ready" && data.audio_url) {
+          enqueueAudio(data.audio_url);
+        }
+      } catch (err) {}
+    };
+    ws.onclose = () => setTimeout(() => location.reload(), 3000);
+
+    loadSystemFonts();
+  </script>
+</body>
+</html>

@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VoiceForge Master Studio — Multi-Engine AI Stream Broadcaster</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #0f172a 50%, #020617 100%);
+      --glass: rgba(255, 255, 255, 0.04);
+      --glass-border: rgba(255, 255, 255, 0.1);
+      --forge: linear-gradient(135deg, #f97316 0%, #f43f5e 50%, #a855f7 100%);
+      --forge-glow: rgba(244, 63, 94, 0.4);
+      --live-green: #22c55e;
+      --live-glow: rgba(34, 197, 94, 0.4);
+      --text: #f8fafc;
+      --text-dim: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Plus Jakarta Sans", sans-serif; }
+    body { min-height: 100vh; background: var(--bg); color: var(--text); display: flex; justify-content: center; padding: 16px; }
+    .app { width: 100%; max-width: 1280px; display: flex; flex-direction: column; gap: 14px; }
+
+    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+    .master-switch-group { display: flex; align-items: center; gap: 10px; }
+    .stream-toggle-btn {
+      padding: 8px 24px;
+      border-radius: 50px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.06);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.25s ease;
+    }
+    .stream-toggle-btn.live {
+      background: rgba(34, 197, 94, 0.25);
+      border-color: var(--live-green);
+      box-shadow: 0 0 16px var(--live-glow);
+    }
+    .stream-toggle-btn.paused {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: #ef4444;
+    }
+
+    .audio-unlock-btn {
+      padding: 6px 16px;
+      border-radius: 50px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: 0.2s;
+    }
+    .audio-unlock-btn.locked {
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid #f59e0b;
+      color: #fbbf24;
+      animation: pulse 1.5s infinite;
+    }
+    .audio-unlock-btn.unlocked {
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid #22c55e;
+      color: #4ade80;
+    }
+    @keyframes pulse { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
+
+    .tab-bar {
+      display: flex;
+      gap: 8px;
+      padding: 8px 14px;
+      background: rgba(255,255,255,0.035);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--glass-border);
+      border-radius: 50px;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      padding: 8px 18px;
+      border-radius: 50px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.03);
+      color: var(--text-dim);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { background: rgba(255,255,255,0.08); color: #fff; transform: translateY(-1px); }
+    .tab-btn.active {
+      background: rgba(244,63,94,0.25);
+      border-color: #f43f5e;
+      color: #fff;
+      box-shadow: 0 0 14px var(--forge-glow);
+    }
+
+    .glass-card { background: var(--glass); backdrop-filter: blur(24px); border: 1px solid var(--glass-border); border-radius: 20px; padding: 22px; box-shadow: 0 16px 40px rgba(0,0,0,0.5); }
+    .grid-2 { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; }
+    @media(max-width: 960px){ .grid-2 { grid-template-columns: 1fr; } }
+
+    .btn { border-radius: 50px; padding: 8px 20px; font-weight: 600; cursor: pointer; border: none; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
+    .btn-forge { background: var(--forge); color: #fff; box-shadow: 0 4px 16px var(--forge-glow); }
+    .btn-forge:hover { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(244,63,94,0.6); }
+    .btn-secondary { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid var(--glass-border); }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-success { background: #22c55e; color: #fff; }
+
+    .pill { background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); padding: 6px 14px; border-radius: 50px; cursor: pointer; font-size: 0.82rem; transition: 0.2s; white-space: nowrap; }
+    .pill:hover { border-color: #f43f5e; }
+    .pill.active { background: rgba(249,115,22,0.25); border-color: #f97316; color: #fed7aa; }
+
+    textarea, input[type="text"], input[type="number"], select { width: 100%; background: rgba(0,0,0,0.35); border: 1px solid var(--glass-border); border-radius: 12px; padding: 10px 14px; color: #fff; font-size: 0.9rem; outline: none; }
+    textarea:focus, input:focus, select:focus { border-color: #f43f5e; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { text-align: left; padding: 10px; color: var(--text-dim); border-bottom: 1px solid var(--glass-border); }
+    td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(12px); z-index: 200; justify-content: center; align-items: center; padding: 20px; }
+    .modal-content { width: 100%; max-width: 600px; background: #0f172a; border: 1px solid var(--glass-border); border-radius: 24px; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.9); }
+    .status-bar { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-dim); padding: 12px 20px; border-radius: 50px; background: var(--glass); border: 1px solid var(--glass-border); }
+    .badge-pill { font-size: 0.72rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+        <h1 style="font-size:1.8rem; background:linear-gradient(135deg,#fff,#fed7aa,#f43f5e); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">🎙 VoiceForge</h1>
+        <div class="master-switch-group">
+          <button class="stream-toggle-btn paused" id="master-stream-btn" onclick="toggleStreamReading()">
+            <span id="master-stream-dot" style="width:10px;height:10px;border-radius:50%;background:#ef4444;"></span>
+            <span id="master-stream-label">▶ Start Reading</span>
+          </button>
+          <span style="font-size:0.75rem; color:var(--text-dim);" id="reading-badge">⚪ PAUSED (Ctrl+Space)</span>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button id="btn-audio-unlock" class="audio-unlock-btn locked" onclick="unlockAudioDirect()">
+          <span id="audio-unlock-icon">⚠️</span> <span id="audio-unlock-text">Click to Enable Audio</span>
+        </button>
+        <span id="now-speaking-indicator" style="display:none; font-size:0.78rem; color:#4ade80; font-weight:700;">🔊 Speaking...</span>
+        <button class="btn btn-secondary" onclick="switchTab('tab-sources')">📡 Sources</button>
+        <button class="btn btn-secondary" onclick="switchTab('tab-audio')">⚙️ Settings</button>
+      </div>
+    </header>
+
+    <div class="tab-bar">
+      <button class="tab-btn" id="btn-tab-tts" onclick="switchTab('tab-tts')">🎤 TTS Prompter</button>
+      <button class="tab-btn active" id="btn-tab-reader" onclick="switchTab('tab-reader')">📖 Reader</button>
+      <button class="tab-btn" id="btn-tab-activity" onclick="switchTab('tab-activity')">⏱ Live Activity</button>
+      <button class="tab-btn" id="btn-tab-audiolog" onclick="switchTab('tab-audiolog')">📝 Audio Log</button>
+      <button class="tab-btn" id="btn-tab-sources" onclick="switchTab('tab-sources')">📡 Sources</button>
+      <button class="tab-btn" id="btn-tab-studio" onclick="switchTab('tab-studio')">🎤 Voice Studio</button>
+      <button class="tab-btn" id="btn-tab-commands" onclick="switchTab('tab-commands')">⌨️ Commands</button>
+      <button class="tab-btn" id="btn-tab-audio" onclick="switchTab('tab-audio')">🎛 Audio (Settings)</button>
+    </div>
+
+    <!-- TAB 0: TTS Prompter -->
+    <section id="tab-tts" class="tab-section grid-2" style="display:none;">
+      <div class="glass-card" style="display:flex; flex-direction:column; gap:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-weight:700; font-size:0.88rem; color:var(--text-dim);">VOICE SELECTOR</span>
+          <span id="voice-count-tag" style="font-size:0.8rem; color:#fed7aa;">0 voices</span>
+        </div>
+        <div id="voice-pills" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:4px;"></div>
+        
+        <textarea id="prompt-input" rows="5" placeholder="!ron-.75 I want to run slow.&#10;!bella-1.25 I am speaking fast!&#10;!swifty 0.80 nice and easy&#10;!george jolly good day"></textarea>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-forge" id="gen-btn" onclick="generateSpeech()">🎙 Generate</button>
+            <button class="btn btn-secondary" onclick="refreshVoices()">📁 Refresh</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-dim);">
+            <button id="mute-btn" onclick="toggleMute()" style="background:none;border:none;color:#fff;font-size:1.1rem;cursor:pointer;">🔊</button>
+            <span>Volume:</span>
+            <input type="range" id="vol-slider" min="0" max="150" value="85" oninput="updateVolume(this.value)" style="width:90px;">
+            <span id="vol-val">85%</span>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--glass-border); padding-top:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span id="out-filename" style="font-family:monospace; font-size:0.8rem; color:#fed7aa;">output.wav</span>
+            <a href="#" id="save-link" class="btn btn-secondary" style="padding:4px 12px; font-size:0.75rem;" download>💾 Save</a>
+          </div>
+          <audio id="audio-player" controls style="width:100%; height:40px; border-radius:30px;"></audio>
+        </div>
+      </div>
+
+      <div class="glass-card" style="display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-weight:700; font-size:0.88rem; color:var(--text-dim);">UNIFIED CHAT FEED</span>
+          <button class="btn btn-secondary" style="padding:4px 10px; font-size:0.75rem;" onclick="document.getElementById('chat-feed').innerHTML=''">Clear</button>
+        </div>
+        <div id="chat-feed" style="height:380px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+    </section>
+
+    <!-- TAB 1: Reader (OBS Chroma-Key Chat HUD) -->
+    <section id="tab-reader" class="tab-section glass-card" style="padding:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <span style="font-weight:700; color:var(--text-dim);">OBS CHROMA-KEY CHAT HUD</span>
+        <button class="btn btn-forge" onclick="window.open('/reader','VoiceForgeReader','width=600,height=800')">⬆ Pop Out</button>
+      </div>
+      <iframe src="/reader" style="width:100%; height:540px; border-radius:14px; border:1px solid var(--glass-border);"></iframe>
+    </section>
+
+    <!-- TAB 2: Live Activity -->
+    <section id="tab-activity" class="tab-section glass-card" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h3 style="font-size:1.2rem;">⏱ Scheduled Announcements & Event Triggers</h3>
+        <button class="btn btn-forge" onclick="openModal('timed-modal')">＋ Add Timed Message</button>
+      </div>
+      <table style="margin-bottom:20px;">
+        <thead>
+          <tr><th>Schedule</th><th>Voice</th><th>Message</th><th>Last Fired</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="timed-table"></tbody>
+      </table>
+      <h4 style="font-size:0.95rem; color:var(--text-dim); margin-bottom:8px;">Live Activity Log</h4>
+      <div id="activity-log-feed" style="height:160px; overflow-y:auto; background:rgba(0,0,0,0.3); padding:10px; border-radius:12px; font-size:0.85rem; display:flex; flex-direction:column; gap:4px;"></div>
+    </section>
+
+    <!-- TAB 3: Audio Log -->
+    <section id="tab-audiolog" class="tab-section glass-card" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+        <h3 style="font-size:1.2rem;">📝 Moderation, Blocked Users & Speech Filtering</h3>
+        <button class="btn btn-forge" onclick="saveFilterSettings()">💾 Save Filter Rules</button>
+      </div>
+      
+      <div style="background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:16px; border-radius:14px; margin-bottom:18px;">
+        <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:14px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
+            <input type="checkbox" id="chk-block-bots" onchange="saveFilterSettings()"> <b>🛡 Bot Shield (Block Links in Message Text)</b>
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
+            <input type="checkbox" id="chk-block-keywords" onchange="saveFilterSettings()"> <b>🚫 Keyword Censorship (Applies ONLY to Spoken Text)</b>
+          </label>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:14px;">
+          <div>
+            <label style="font-size:0.82rem; color:#f87171; font-weight:700;">BLOCKED MESSAGE KEYWORDS (Comma-separated):</label>
+            <input type="text" id="filter-keywords" style="margin-top:6px;">
+          </div>
+          <div>
+            <label style="font-size:0.82rem; color:#4ade80; font-weight:700;">⭐ WHITELISTED USERS (Always Allowed / Never Blocked):</label>
+            <input type="text" id="filter-whitelist" style="margin-top:6px;" placeholder="littlesaltybear, coomer, swifty, FoodistFemboy">
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--glass-border); padding-top:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <label style="font-size:0.82rem; color:#f43f5e; font-weight:700;">🚫 MANUALLY BANNED USERS (Muted from TTS):</label>
+            <div style="display:flex; gap:6px;">
+              <input type="text" id="new-block-username" placeholder="Chatter username..." style="width:180px; padding:4px 10px; font-size:0.8rem;">
+              <button class="btn btn-danger" style="padding:4px 12px; font-size:0.75rem;" onclick="addManualBlockUser()">Mute User</button>
+            </div>
+          </div>
+          <div id="blocked-users-list" style="display:flex; gap:8px; flex-wrap:wrap;">
+            <span style="font-size:0.8rem; color:var(--text-dim);">No users currently banned. Everyone (including trolls) is permitted to speak!</span>
+          </div>
+        </div>
+      </div>
+
+      <h4 style="font-size:0.95rem; color:var(--text-dim); margin-bottom:8px;">Filtered / Blocked Messages Log</h4>
+      <table id="filtered-log-table">
+        <thead><tr><th>Time</th><th>Source</th><th>User</th><th>Message</th><th>Reason</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- TAB 4: Sources -->
+    <section id="tab-sources" class="tab-section glass-card" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+        <h3 style="font-size:1.2rem;">📡 Multicast Stream Ingestion</h3>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:6px; font-size:0.85rem; color:#fed7aa;">
+            <span>Default Voice:</span>
+            <select id="stream-default-voice" style="width:140px; padding:6px 10px;" onchange="saveStreamVoiceConfig()"></select>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; font-size:0.85rem; color:#fed7aa;">
+            <span>Mode:</span>
+            <select id="stream-read-mode" style="width:180px; padding:6px 10px;" onchange="saveStreamVoiceConfig()">
+              <option value="all">🎙 Read All (Default + !name)</option>
+              <option value="commands_only">⌨️ Commands Only (!name)</option>
+            </select>
+          </div>
+          <button id="btn-browser-view" class="btn btn-secondary" style="border-color:#38bdf8; color:#38bdf8;" onclick="toggleBrowserVisibility()">👁️ Show Browser to Verify / Log In</button>
+          <button class="btn btn-forge" onclick="openModal('sources-modal')">＋ Add Source</button>
+        </div>
+      </div>
+
+      <div id="sources-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; margin-bottom:18px;"></div>
+      <h4 style="font-size:0.95rem; color:var(--text-dim); margin-bottom:8px;">Unified Multicast Live Feed</h4>
+      <div id="unified-feed" style="height:220px; overflow-y:auto; background:rgba(0,0,0,0.3); padding:10px; border-radius:12px; font-size:0.85rem; display:flex; flex-direction:column; gap:6px;"></div>
+    </section>
+
+    <!-- TAB 5: Voice Studio -->
+    <section id="tab-studio" class="tab-section glass-card" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+        <h3 style="font-size:1.2rem;">🎤 Voice Vault & Per-Voice Personality Studio</h3>
+        <button class="btn btn-forge" onclick="encodeAllVoices()">Encode All in RAM</button>
+      </div>
+
+      <!-- Dedicated Voice Customization Card -->
+      <div style="background:rgba(0,0,0,0.35); border:1px solid var(--glass-border); padding:16px; border-radius:14px; margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+          <h4 id="custom-voice-title" style="font-size:1rem; color:#fed7aa;">⚙️ Custom Personality</h4>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:0.75rem; color:#4ade80; font-weight:700;">🎤 Custom:</span>
+              <select id="studio-custom-voice-picker" style="width:145px; padding:6px 8px; font-size:0.82rem;" onchange="onSelectCustomVoice(this.value)"></select>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:0.75rem; color:#38bdf8; font-weight:700;">🌸 Kokoro:</span>
+              <select id="studio-kokoro-voice-picker" style="width:155px; padding:6px 8px; font-size:0.82rem;" onchange="onSelectKokoroVoice(this.value)"></select>
+            </div>
+            <button class="btn btn-forge" onclick="saveSelectedVoiceProfile()">💾 Save Voice Profile</button>
+          </div>
+        </div>
+        <div id="custom-voice-dynamic-controls" style="min-height:50px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.06); padding:14px; border-radius:10px;"></div>
+      </div>
+
+      <div style="background:rgba(0,0,0,0.25); border:1px solid var(--glass-border); padding:12px; border-radius:12px; margin-bottom:16px;">
+        <label style="font-size:0.82rem; color:#fed7aa; font-weight:700;">PREVIEW PHRASE (Use <code>[voice]</code> for voice name):</label>
+        <div style="display:flex; gap:10px; margin-top:6px;">
+          <input type="text" id="custom-test-phrase" value="Hello! This is [voice] testing in-memory speed on VoiceForge.">
+          <button class="btn btn-secondary" onclick="saveTestPhrase()">💾 Save Phrase</button>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="btn btn-secondary active" id="tab-btn-custom-voices" style="border-color:#4ade80; color:#4ade80; padding:4px 14px; font-size:0.78rem;" onclick="filterStudioTable('custom')">🎤 Custom Voices (<span id="count-custom-tab">0</span>)</button>
+        <button class="btn btn-secondary" id="tab-btn-kokoro-voices" style="border-color:#38bdf8; color:#38bdf8; padding:4px 14px; font-size:0.78rem;" onclick="filterStudioTable('kokoro')">🌸 Kokoro Library (<span id="count-kokoro-tab">0</span>)</button>
+      </div>
+      <table>
+        <thead><tr><th>Voice Name</th><th>Format</th><th>Memory Status</th><th>Personality Profile</th><th>Actions</th></tr></thead>
+        <tbody id="voice-studio-table"></tbody>
+      </table>
+    </section>
+
+    <!-- TAB 6: Commands -->
+    <section id="tab-commands" class="tab-section glass-card" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="font-size:1.2rem;">⌨️ Viewer Commands & Triggers</h3>
+        <button class="btn btn-forge" onclick="openModal('cmd-modal')">＋ Add Command</button>
+      </div>
+      <table>
+        <thead><tr><th>Command</th><th>Assigned Voice</th><th>Response Text</th><th>Cooldown</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="commands-table"></tbody>
+      </table>
+    </section>
+
+    <!-- TAB 7: Audio & Settings -->
+    <section id="tab-audio" class="tab-section glass-card" style="display:none;">
+      <h3 style="font-size:1.2rem; margin-bottom:18px;">🎛 Engine Tuning, Hardware Acceleration & Output</h3>
+      
+      <div style="border-bottom:1px solid var(--glass-border); padding-bottom:18px; margin-bottom:18px;">
+        <div style="background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:16px; border-radius:14px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <label style="font-size:0.9rem; color:#fed7aa; font-weight:700;">HARDWARE ACCELERATION ENGINE:</label>
+            <span id="active-hw-badge" style="font-size:0.78rem; font-weight:700; color:#22c55e;">🚀 GPU (CUDA) Active</span>
+          </div>
+          <div style="display:flex; gap:18px; flex-wrap:wrap; align-items:center;">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="radio" name="hw-device" value="cpu" id="hw-cpu" onchange="switchHardwareDevice()"> <b>CPU Mode</b></label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="radio" name="hw-device" value="cuda" id="hw-cuda" onchange="switchHardwareDevice()"> <b>GPU (NVIDIA CUDA)</b></label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="radio" name="hw-device" value="cuda_compile" id="hw-compile" onchange="switchHardwareDevice()"> <b>GPU + torch.compile</b></label>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:14px;">
+          <div>
+            <label style="font-size:0.85rem; color:#fed7aa; font-weight:700;">ACTIVE PRIMARY TTS MODEL</label>
+            <select id="engine-select" style="margin-top:6px;" onchange="switchEngine(this.value)">
+              <option value="cosyvoice2">CosyVoice 2 (Expressive Flow-Matching)</option>
+              <option value="chatterbox_nano">Chatterbox-Nano (Fast Zero-Shot)</option>
+              <option value="qwen3_tts">Qwen3-TTS (Multi-Emotion)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.85rem; color:#fed7aa; font-weight:700;">MASTER VOLUME</label>
+            <input type="range" id="master-vol" min="0" max="150" value="85" style="margin-top:10px;" oninput="updateVolume(this.value)">
+          </div>
+        </div>
+
+        <!-- Kokoro Language Pack Selector -->
+        <div style="background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:16px; border-radius:14px; margin-top:14px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <div>
+              <h4 style="font-size:0.95rem; color:#38bdf8; font-weight:700;">🌸 Kokoro Language Packs & Voice Filter</h4>
+              <span style="font-size:0.75rem; color:var(--text-dim);">Enable or disable language catalogs. Only voices from enabled languages appear in dropdowns & voice lists.</span>
+            </div>
+            <button class="btn btn-forge" style="padding:4px 14px; font-size:0.75rem;" onclick="saveKokoroLanguages()">💾 Save Languages</button>
+          </div>
+          <div id="kokoro-languages-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px;">
+            <span style="font-size:0.8rem; color:var(--text-dim);">Loading languages...</span>
+          </div>
+        </div>
+
+        <!-- Model Storage & Download Footprint Manager -->
+        <div style="background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:16px; border-radius:14px; margin-top:16px; margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <div>
+              <h4 style="font-size:0.95rem; color:#fed7aa; font-weight:700;">📦 Model Weights & Disk Footprint Manager</h4>
+              <span style="font-size:0.75rem; color:var(--text-dim);">Inspect local model sizes, remove unneeded checkpoints to save disk/RAM, or re-download on demand.</span>
+            </div>
+            <button class="btn btn-secondary" style="padding:4px 12px; font-size:0.75rem;" onclick="loadModelStatus()">🔄 Refresh Status</button>
+          </div>
+          <div id="models-status-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:10px;">
+            <span style="color:var(--text-dim); font-size:0.8rem;">Loading model status...</span>
+          </div>
+        </div>
+
+        <div id="engine-specific-panel" style="background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:16px; border-radius:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h4 style="font-size:0.95rem; color:#f43f5e;" id="tuning-header-title">Global Engine Parameter Tuning</h4>
+            <button class="btn btn-forge" onclick="saveEngineParams()">💾 Save Global Engine Settings</button>
+          </div>
+          <div id="engine-controls-dynamic"></div>
+        </div>
+      </div>
+
+      <div>
+        <h4 style="font-size:1rem; color:#fed7aa; margin-bottom:12px;">⚡ In-Memory Voice Storage & Capacity (1–100 Voices)</h4>
+        <div class="grid-2" style="margin-bottom:14px;">
+          <div>
+            <label style="font-size:0.82rem; color:var(--text-dim); font-weight:700;">STORAGE TIER:</label>
+            <div style="display:flex; gap:14px; margin-top:8px;">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="radio" name="mem-tier" value="ram" id="tier-ram" onchange="updateMemorySettings()"> <b>RAM (Fast)</b></label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="radio" name="mem-tier" value="vram" id="tier-vram" onchange="updateMemorySettings()"> <b>VRAM (GPU Zero-Copy)</b></label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="radio" name="mem-tier" value="disk" id="tier-disk" onchange="updateMemorySettings()"> <b>Disk (Lazy Mode)</b></label>
+            </div>
+          </div>
+          <div>
+            <label style="font-size:0.82rem; color:var(--text-dim); font-weight:700;">MAX VOICES IN MEMORY: <span id="max-voices-val" style="color:#38bdf8;">50</span></label>
+            <input type="range" id="max-voices-slider" min="1" max="100" value="50" style="margin-top:8px;" oninput="onMaxVoicesSlider(this.value)">
+          </div>
+        </div>
+        <div id="mem-status-badge" style="font-size:0.8rem; color:#22c55e;">⚡ All voices loaded in VRAM/RAM for instantaneous speech recall.</div>
+      </div>
+    </section>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span id="status-live">🔴 LIVE</span>
+      <span id="status-engine">Engine: CosyVoice 2</span>
+      <span id="status-voices">0 voices</span>
+      <span id="status-queue">Queue: 0</span>
+      <span id="status-ram">Unified Memory Active</span>
+    </div>
+  </div>
+
+  <!-- Connect Source Modal -->
+  <div class="modal" id="sources-modal">
+    <div class="modal-content">
+      <h3 style="margin-bottom:12px;">📡 Connect Live Stream Source</h3>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
+        <div>
+          <label style="font-size:0.8rem; color:var(--text-dim);">PLATFORM</label>
+          <select id="src-platform">
+            <option value="rumble" selected>Rumble (Chat Popup URL or Video URL)</option>
+            <option value="x.com">X.com / Twitter (Profile, Tweet or Broadcast URL)</option>
+            <option value="kick">Kick (Channel Name or URL)</option>
+            <option value="blaze">Blaze.stream (Live Stream URL)</option>
+            <option value="twitch">Twitch (Channel Name or URL)</option>
+            <option value="youtube">YouTube Live (URL or Video ID)</option>
+            <option value="discord">Discord (Bot Token + Channel ID)</option>
+            <option value="custom">Custom WebSocket</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.8rem; color:var(--text-dim);">STREAM / CHANNEL / CHAT URL</label>
+          <input type="text" id="src-target" placeholder="e.g. https://kick.com/theburntpeanut or https://x.com/SaltyLittleBear/livechat">
+        </div>
+        <div>
+          <label style="font-size:0.8rem; color:var(--text-dim);">OAUTH / TOKEN (Optional for Twitch/Rumble)</label>
+          <input type="password" id="src-token">
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="closeModal('sources-modal')">Cancel</button>
+        <button class="btn btn-forge" id="connect-source-btn" onclick="saveSource()">Connect Source</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Benchmark Modal -->
+  <div class="modal" id="benchmark-modal">
+    <div class="modal-content">
+      <h3 style="margin-bottom:10px; color:#fed7aa;" id="bm-voice-title">⚡ Voice Speed Benchmark</h3>
+      <div style="display:flex; flex-direction:column; gap:12px; font-size:0.9rem; margin-bottom:18px;">
+        <div style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); padding:10px; border-radius:10px;">
+          <b>Cold Load Time:</b> <span id="bm-cold-ms" style="color:#f87171; font-weight:700;">-- ms</span>
+        </div>
+        <div style="background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.3); padding:10px; border-radius:10px;">
+          <b>Hot In-Memory Synthesis:</b> <span id="bm-hot-ms" style="color:#4ade80; font-weight:700;">-- ms</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; background:rgba(0,0,0,0.3); padding:10px; border-radius:10px;">
+          <span>⚡ Speedup Factor: <b id="bm-speedup" style="color:#38bdf8;">--</b></span>
+          <span>RTF: <b id="bm-rtf" style="color:#fed7aa;">--</b></span>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end;">
+        <button class="btn btn-forge" onclick="closeModal('benchmark-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timed Modal -->
+  <div class="modal" id="timed-modal">
+    <div class="modal-content">
+      <h3 style="margin-bottom:12px;">＋ Add Timed Announcement</h3>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
+        <div><label style="font-size:0.8rem; color:var(--text-dim);">TYPE</label><select id="t-type"><option value="interval">Every X Minutes</option><option value="at_time">At Exact Time (HH:MM)</option></select></div>
+        <div><label style="font-size:0.8rem; color:var(--text-dim);">INTERVAL (MINS) / TIME (HH:MM)</label><input type="text" id="t-val" value="10"></div>
+        <div><label style="font-size:0.8rem; color:var(--text-dim);">VOICE</label><select id="t-voice"></select></div>
+        <div><label style="font-size:0.8rem; color:var(--text-dim);">MESSAGE</label><textarea id="t-msg" rows="3" placeholder="!ron Check out the stream!"></textarea></div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="closeModal('timed-modal')">Cancel</button>
+        <button class="btn btn-forge" onclick="saveTimedMessage()">Save Schedule</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Command Modal -->
+  <div class="modal" id="cmd-modal">
+    <div class="modal-content">
+      <h3 style="margin-bottom:12px;">⌨️ Create Viewer Command</h3>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
+        <div><label style="font-size:0.8rem; color:var(--text-dim);">COMMAND NAME</label><input type="text" id="cmd-name" placeholder="!hello"></div>
+        <div><label style="font-size:0.8rem; color:var(--text-dim);">VOICE</label><select id="cmd-voice"></select></div>
+        <div><label style="font-size:0.8rem; color:var(--text-dim);">RESPONSE</label><textarea id="cmd-resp" rows="2" placeholder="Welcome to the stream!"></textarea></div>
+        <div><label style="font-size:0.8rem; color:var(--text-dim);">COOLDOWN (SECS)</label><input type="number" id="cmd-cd" value="10"></div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="closeModal('cmd-modal')">Cancel</button>
+        <button class="btn btn-forge" onclick="saveCommand()">Save Command</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let isReadingActive = true, currentEngine = "cosyvoice2", voicesList = [], engineParams = {}, audioBlobUrl = null;
+    let speechAudioQueue = [], isMasterAudioPlaying = false;
+    let currentActiveAudio = null;
+    let isBrowserVisible = false;
+    let isAudioUnlocked = false;
+    let selectedStudioVoice = null;
+    let voiceProfiles = {};
+    let currentStudioCategory = "custom";
+    let clonedVoicesList = [];
+    let kokoroVoicesList = [];
+
+    function safeEl(id) { return document.getElementById(id); }
+    function safeSetText(id, text) { const el = safeEl(id); if (el) el.textContent = text; }
+    function safeSetValue(id, val) { const el = safeEl(id); if (el) el.value = val; }
+    function openModal(id) { const el = safeEl(id); if (el) el.style.display = "flex"; }
+    function closeModal(id) { const el = safeEl(id); if (el) el.style.display = "none"; }
+
+    function getNormalizedVolume() {
+      const volSlider = safeEl("vol-slider") || safeEl("master-vol");
+      if (!volSlider) return 0.85;
+      const raw = parseFloat(volSlider.value) / 100.0;
+      return Math.min(1.0, Math.max(0.0, isNaN(raw) ? 0.85 : raw));
+    }
+
+    async function updateVolume(val) {
+      const v = Math.min(150, Math.max(0, parseInt(val)));
+      safeSetText("vol-val", v + "%");
+      safeSetValue("vol-slider", v);
+      safeSetValue("master-vol", v);
+
+      const norm = Math.min(1.0, Math.max(0.0, v / 100.0));
+      if (currentActiveAudio && !currentActiveAudio.paused) {
+        currentActiveAudio.volume = norm;
+      }
+
+      try {
+        await fetch("/api/settings/volume", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ volume: v })
+        });
+      } catch (e) {}
+    }
+
+    async function toggleMute() {
+      const btn = safeEl("mute-btn");
+      if (!btn) return;
+      const isMuted = btn.textContent === "🔇";
+      const nextMute = !isMuted;
+      btn.textContent = nextMute ? "🔇" : "🔊";
+
+      if (currentActiveAudio) currentActiveAudio.muted = nextMute;
+
+      await fetch("/api/settings/volume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ muted: nextMute })
+      });
+    }
+
+    function unlockAudioDirect() {
+      try {
+        const dummy = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+        dummy.play().then(() => setAudioUnlockedUI(true)).catch(() => setAudioUnlockedUI(false));
+      } catch (e) {}
+    }
+
+    function setAudioUnlockedUI(unlocked) {
+      isAudioUnlocked = unlocked;
+      const btn = safeEl("btn-audio-unlock");
+      const icon = safeEl("audio-unlock-icon");
+      const text = safeEl("audio-unlock-text");
+      if (btn && icon && text) {
+        if (unlocked) {
+          btn.className = "audio-unlock-btn unlocked";
+          icon.textContent = "🔊";
+          text.textContent = "Audio Active";
+        } else {
+          btn.className = "audio-unlock-btn locked";
+          icon.textContent = "⚠️";
+          text.textContent = "Click to Enable Audio";
+        }
+      }
+    }
+
+    window.addEventListener("click", () => {
+      if (!isAudioUnlocked) unlockAudioDirect();
+    });
+
+    function enqueueMasterSpeech(url, label) {
+      speechAudioQueue.push({ url, label });
+      if (!isMasterAudioPlaying) playNextMasterAudio();
+    }
+
+    function playNextMasterAudio() {
+      if (speechAudioQueue.length === 0) {
+        isMasterAudioPlaying = false;
+        safeSetText("status-queue", "Queue: 0");
+        const ind = safeEl("now-speaking-indicator");
+        if (ind) ind.style.display = "none";
+        currentActiveAudio = null;
+        return;
+      }
+      isMasterAudioPlaying = true;
+      safeSetText("status-queue", `Queue: ${speechAudioQueue.length}`);
+      const item = speechAudioQueue.shift();
+
+      const ind = safeEl("now-speaking-indicator");
+      if (ind) {
+        ind.style.display = "inline";
+        ind.textContent = `🔊 Speaking: ${item.label.substring(0, 25)}...`;
+      }
+
+      const audio = new Audio(item.url);
+      currentActiveAudio = audio;
+      audio.volume = getNormalizedVolume();
+
+      let finished = false;
+      const onDone = () => {
+        if (finished) return;
+        finished = true;
+        audio.onended = null;
+        audio.onerror = null;
+        if (currentActiveAudio === audio) currentActiveAudio = null;
+        playNextMasterAudio();
+      };
+
+      audio.onended = onDone;
+      audio.onerror = onDone;
+
+      setTimeout(() => {
+        if (!finished && audio.paused) onDone();
+      }, 15000);
+
+      audio.play().then(() => setAudioUnlockedUI(true)).catch(err => {
+        setAudioUnlockedUI(false);
+        setTimeout(onDone, 1200);
+      });
+    }
+
+    function switchTab(targetId) {
+      if (!targetId) return;
+      
+      document.querySelectorAll(".tab-btn").forEach(b => {
+        const isTarget = (b.id === `btn-${targetId}`) || 
+                         (b.getAttribute("onclick") && b.getAttribute("onclick").includes(targetId)) ||
+                         (b.dataset && b.dataset.target === targetId);
+        b.classList.toggle("active", Boolean(isTarget));
+      });
+
+      document.querySelectorAll(".tab-section").forEach(s => {
+        if (s.id === targetId) {
+          s.style.display = s.classList.contains("grid-2") ? "grid" : "block";
+        } else {
+          s.style.display = "none";
+        }
+      });
+
+      localStorage.setItem("activeTab", targetId);
+
+      try {
+        if (targetId === "tab-activity" && typeof loadActivity === "function") loadActivity();
+        if (targetId === "tab-audiolog" && typeof loadAudioLog === "function") loadAudioLog();
+        if (targetId === "tab-sources" && typeof loadSources === "function") loadSources();
+        if (targetId === "tab-studio" && typeof loadStudio === "function") { loadVoices(); loadStudio(); }
+        if (targetId === "tab-commands" && typeof loadCommands === "function") loadCommands();
+        if (targetId === "tab-audio" && typeof loadEngineSettings === "function") { 
+          loadEngineSettings(); 
+          if (typeof loadModelStatus === "function") loadModelStatus(); 
+          if (typeof loadKokoroLanguages === "function") loadKokoroLanguages();
+        }
+        if (targetId === "tab-tts" && typeof loadVoices === "function") loadVoices();
+      } catch (err) {
+        console.warn("Tab loader notice:", err);
+      }
+    }
+
+    async function toggleStreamReading() {
+      unlockAudioDirect();
+      const endpoint = isReadingActive ? "/api/stream/stop" : "/api/stream/start";
+      try {
+        const res = await fetch(endpoint, { method: "POST" });
+        const d = await res.json();
+        setReadingUI(d.reading);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function setReadingUI(active) {
+      isReadingActive = active;
+      const btn = safeEl("master-stream-btn");
+      const dot = safeEl("master-stream-dot");
+      const label = safeEl("master-stream-label");
+      const badge = safeEl("reading-badge");
+      const statusLive = safeEl("status-live");
+
+      if (btn && dot && label && badge && statusLive) {
+        if (active) {
+          btn.className = "stream-toggle-btn live";
+          dot.style.background = "#22c55e";
+          label.textContent = "⏹ Stop Reading";
+          badge.textContent = "🔴 LIVE";
+          statusLive.textContent = "🔴 LIVE";
+          statusLive.style.color = "#22c55e";
+        } else {
+          btn.className = "stream-toggle-btn paused";
+          dot.style.background = "#ef4444";
+          label.textContent = "▶ Start Reading";
+          badge.textContent = "⚪ PAUSED (Ctrl+Space)";
+          statusLive.textContent = "⚪ PAUSED";
+          statusLive.style.color = "#94a3b8";
+        }
+      }
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.code === "Space") {
+        e.preventDefault();
+        toggleStreamReading();
+      }
+    });
+
+    async function toggleBrowserVisibility() {
+      isBrowserVisible = !isBrowserVisible;
+      const btn = safeEl("btn-browser-view");
+      if (btn) {
+        btn.textContent = isBrowserVisible ? "🙈 Hide Browser Window" : "👁️ Show Browser to Verify / Log In";
+        btn.style.color = isBrowserVisible ? "#f43f5e" : "#38bdf8";
+        btn.style.borderColor = isBrowserVisible ? "#f43f5e" : "#38bdf8";
+      }
+      try {
+        await fetch("/api/settings/browser-visibility", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visible: isBrowserVisible })
+        });
+      } catch (err) {
+        console.error("toggleBrowserVisibility error:", err);
+      }
+    }
+
+    async function saveSource() {
+      const pEl = safeEl("src-platform"), tEl = safeEl("src-target"), kEl = safeEl("src-token");
+      if (!pEl || !tEl) return;
+      const platform = pEl.value, target = tEl.value.trim(), token = kEl ? kEl.value.trim() : "";
+      if (!target) return alert("Please enter a stream URL or channel name.");
+      closeModal("sources-modal");
+      tEl.value = "";
+      try {
+        await fetch("/api/sources/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platform, target, token })
+        });
+        await loadSources();
+      } catch (err) {}
+    }
+
+    async function loadSources() {
+      try {
+        const res = await fetch("/api/sources");
+        const d = await res.json();
+        const grid = safeEl("sources-grid");
+        if (!grid) return;
+        grid.innerHTML = "";
+        const sources = d.sources || [];
+        if (sources.length === 0) {
+          grid.innerHTML = `<div style="color:var(--text-dim);font-size:0.88rem;grid-column:1/-1;">No connected stream sources yet. Click "＋ Add Source" to connect Rumble, Kick, X.com, Blaze, Twitch, or YouTube.</div>`;
+          return;
+        }
+
+        const colorMap = { "RUMBLE": "#85c742", "KICK": "#53fc18", "X.COM": "#38bdf8", "BLAZE": "#f97316", "TWITCH": "#9146ff", "YOUTUBE": "#ef4444" };
+        sources.forEach(s => {
+          const plat = (s.platform || "Stream").toUpperCase();
+          const dotColor = s.status === "connected" ? (colorMap[plat] || "#22c55e") : (s.status === "connecting" ? "#facc15" : "#f87171");
+          const card = document.createElement("div");
+          card.style = "background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:16px; border-radius:14px; display:flex; justify-content:space-between; align-items:center;";
+          card.innerHTML = `
+            <div>
+              <div style="font-weight:700; display:flex; align-items:center; gap:6px;">
+                <span style="width:8px;height:8px;border-radius:50%;background:${dotColor};box-shadow:0 0 8px ${dotColor};"></span>
+                <span style="color:${colorMap[plat] || '#fff'}; font-size:0.8rem; font-weight:800;">[${plat}]</span>
+                <span style="font-size:0.85rem; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${s.target}</span>
+              </div>
+              <div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">Status: <b style="color:${dotColor}">${s.status}</b> | Msgs: <b>${s.message_count || 0}</b></div>
+            </div>
+            <button class="btn btn-danger" style="padding:4px 10px; font-size:0.75rem;" onclick="delSource('${s.id}')">✕</button>
+          `;
+          grid.appendChild(card);
+        });
+      } catch (err) {}
+    }
+
+    async function delSource(id) {
+      await fetch(`/api/sources/${id}`, { method: "DELETE" });
+      loadSources();
+    }
+
+    async function saveStreamVoiceConfig() {
+      const vEl = safeEl("stream-default-voice"), mEl = safeEl("stream-read-mode");
+      if (!vEl || !mEl) return;
+      const cleanVoice = vEl.value.replace('!', '').trim();
+      const readMode = mEl.value;
+      localStorage.setItem("vf_stream_default_voice", cleanVoice);
+      localStorage.setItem("vf_stream_read_mode", readMode);
+
+      await fetch("/api/settings/stream-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ default_voice: cleanVoice, read_mode: readMode })
+      });
+    }
+
+    async function loadEngineSettings() {
+      try {
+        const res = await fetch("/api/engine");
+        const d = await res.json();
+        currentEngine = d.active || "cosyvoice2";
+        engineParams = d.params || {};
+
+        safeSetValue("engine-select", currentEngine);
+        const dev = d.device || "cpu";
+        if (d.compile && safeEl("hw-compile")) safeEl("hw-compile").checked = true;
+        else if (dev === "cuda" && safeEl("hw-cuda")) safeEl("hw-cuda").checked = true;
+        else if (safeEl("hw-cpu")) safeEl("hw-cpu").checked = true;
+
+        const badge = safeEl("active-hw-badge");
+        if (badge) {
+          badge.textContent = dev === "cuda" ? `🚀 GPU (CUDA Active | ${d.gpu_name || 'NVIDIA'})` : "🖥 CPU Mode Active";
+          badge.style.color = dev === "cuda" ? "#22c55e" : "#94a3b8";
+        }
+
+        if (d.memory_tier && safeEl(`tier-${d.memory_tier}`)) safeEl(`tier-${d.memory_tier}`).checked = true;
+        if (d.max_cached_voices && safeEl("max-voices-slider")) {
+          safeEl("max-voices-slider").value = d.max_cached_voices;
+          safeSetText("max-voices-val", d.max_cached_voices);
+        }
+        if (d.test_phrase && safeEl("custom-test-phrase")) safeEl("custom-test-phrase").value = d.test_phrase;
+
+        renderEngineParams();
+      } catch (e) {}
+    }
+
+    function renderEngineParams() {
+      const container = safeEl("engine-controls-dynamic");
+      if (!container) return;
+      const p = engineParams[currentEngine] || {};
+
+      if (currentEngine === "chatterbox_nano") {
+        container.innerHTML = `
+          <div class="grid-2">
+            <div>
+              <label style="font-size:0.8rem; color:var(--text-dim);">Global Exaggeration: <b id="val-exagg">${p.exaggeration || 0.95}</b></label>
+              <input type="range" id="param-exaggeration" min="0" max="2" step="0.05" value="${p.exaggeration || 0.95}" oninput="safeSetText('val-exagg', this.value)">
+            </div>
+            <div>
+              <label style="font-size:0.8rem; color:var(--text-dim);">Global Temperature: <b id="val-temp">${p.temperature || 1.15}</b></label>
+              <input type="range" id="param-temperature" min="0.05" max="2" step="0.05" value="${p.temperature || 1.15}" oninput="safeSetText('val-temp', this.value)">
+            </div>
+          </div>
+        `;
+      } else if (currentEngine === "cosyvoice2") {
+        container.innerHTML = `
+          <div>
+            <label style="font-size:0.8rem; color:var(--text-dim);">Global Instruction Prompt:</label>
+            <input type="text" id="param-instruct" value="${p.instruct || 'speak in a natural clear tone'}">
+          </div>
+        `;
+      } else {
+        const emotions = ["neutral", "happy", "excited", "calm", "confident", "angry", "sad", "sleepy", "surprised", "fearful"];
+        container.innerHTML = `
+          <div>
+            <label style="font-size:0.8rem; color:var(--text-dim);">Global Emotion Label:</label>
+            <select id="param-emotion">
+              ${emotions.map(em => `<option value="${em}" ${p.emotion === em ? 'selected' : ''}>${em.toUpperCase()}</option>`).join('')}
+            </select>
+          </div>
+        `;
+      }
+    }
+
+    async function saveEngineParams() {
+      const p = engineParams[currentEngine] || {};
+      const exEl = safeEl("param-exaggeration"), tpEl = safeEl("param-temperature"), inEl = safeEl("param-instruct"), emEl = safeEl("param-emotion");
+
+      if (currentEngine === "chatterbox_nano" && exEl && tpEl) {
+        p.exaggeration = parseFloat(exEl.value);
+        p.temperature = parseFloat(tpEl.value);
+      } else if (currentEngine === "cosyvoice2" && inEl) {
+        p.instruct = inEl.value;
+      } else if (emEl) {
+        p.emotion = emEl.value;
+      }
+
+      await fetch("/api/engine/params", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ engine: currentEngine, params: p })
+      });
+      alert("✓ Global engine settings saved!");
+    }
+
+    async function switchEngine(eng) {
+      currentEngine = eng;
+      await fetch("/api/engine/switch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ engine: eng }) });
+      renderEngineParams();
+      loadVoices();
+      if (selectedStudioVoice) selectVoiceForCustomization(selectedStudioVoice);
+    }
+
+    async function switchHardwareDevice() {
+      const selected = document.querySelector('input[name="hw-device"]:checked')?.value || "cuda";
+      const isCuda = selected.startsWith("cuda");
+      const compile = selected === "cuda_compile";
+      const res = await fetch("/api/settings/engine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device: isCuda ? "cuda" : "cpu", compile: compile, precision: isCuda ? "bf16" : "fp32" })
+      });
+      const d = await res.json();
+      const badge = safeEl("active-hw-badge");
+      if (badge) {
+        badge.textContent = d.device === "cuda" ? `🚀 GPU (CUDA Active | ${d.gpu_name})` : "🖥 CPU Mode Active";
+        badge.style.color = isCuda ? "#22c55e" : "#94a3b8";
+      }
+      safeSetText("status-engine", `Engine: ${currentEngine} (${d.device.toUpperCase()})`);
+    }
+
+    function onMaxVoicesSlider(val) {
+      safeSetText("max-voices-val", val);
+      updateMemorySettings();
+    }
+
+    async function updateMemorySettings() {
+      const tierEl = document.querySelector('input[name="mem-tier"]:checked');
+      const maxEl = safeEl("max-voices-slider");
+      const phraseEl = safeEl("custom-test-phrase");
+      if (!tierEl || !maxEl) return;
+      const res = await fetch("/api/settings/memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier: tierEl.value, max_cached_voices: parseInt(maxEl.value), test_phrase: phraseEl ? phraseEl.value : "" })
+      });
+      const d = await res.json();
+      safeSetText("mem-status-badge", `⚡ Tier: ${tierEl.value.toUpperCase()} | ${d.voices_in_memory} voices loaded in memory.`);
+      loadVoices();
+    }
+
+    async function saveTestPhrase() {
+      const phraseEl = safeEl("custom-test-phrase");
+      if (!phraseEl || !phraseEl.value.trim()) return;
+      await fetch("/api/settings/memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test_phrase: phraseEl.value.trim() })
+      });
+      alert("✓ Default preview phrase saved!");
+    }
+
+    async function loadVoiceProfiles() {
+      try {
+        const res = await fetch("/api/voices-profiles");
+        const data = await res.json();
+        voiceProfiles = data.profiles || {};
+      } catch (e) {}
+    }
+
+    function onSelectCustomVoice(val) {
+      if (!val) return;
+      safeSetValue("studio-kokoro-voice-picker", "");
+      selectVoiceForCustomization(val);
+    }
+
+    function onSelectKokoroVoice(val) {
+      if (!val) return;
+      safeSetValue("studio-custom-voice-picker", "");
+      selectVoiceForCustomization(val);
+    }
+
+    async function selectVoiceForCustomization(v) {
+      if (!v) return;
+      selectedStudioVoice = v.replace('!', '').trim().toLowerCase();
+      safeSetText("custom-voice-title", `⚙️ Custom Personality: !${selectedStudioVoice.toUpperCase()}`);
+
+      const isKokoro = kokoroVoicesList.some(k => k.toLowerCase() === selectedStudioVoice);
+      if (isKokoro) {
+        safeSetValue("studio-kokoro-voice-picker", selectedStudioVoice);
+        safeSetValue("studio-custom-voice-picker", "");
+      } else {
+        safeSetValue("studio-custom-voice-picker", selectedStudioVoice);
+        safeSetValue("studio-kokoro-voice-picker", "");
+      }
+
+      try {
+        const res = await fetch(`/api/voices/${selectedStudioVoice}/profile`);
+        const data = await res.json();
+        renderCustomVoiceControls(data.profile || {});
+      } catch (e) {
+        renderCustomVoiceControls({});
+      }
+    }
+
+    function renderCustomVoiceControls(prof) {
+      const container = safeEl("custom-voice-dynamic-controls");
+      if (!container) return;
+
+      const isKokoro = kokoroVoicesList.some(k => k.toLowerCase() === selectedStudioVoice);
+
+      if (isKokoro) {
+        container.innerHTML = `
+          <div class="grid-2">
+            <div>
+              <label style="font-size:0.8rem; color:#38bdf8; font-weight:700;">KOKORO SPEECH SPEED: <b id="val-vp-speed">${prof.speed || 1.0}x</b></label>
+              <input type="range" id="vp-speed" min="0.5" max="2.0" step="0.05" value="${prof.speed || 1.0}" oninput="safeSetText('val-vp-speed', this.value + 'x')" style="margin-top:6px;">
+              <span style="font-size:0.75rem; color:var(--text-dim); margin-top:4px; display:block;">Default speaking rate for this voice (override in chat with !${selectedStudioVoice}-.75).</span>
+            </div>
+            <div>
+              <label style="font-size:0.8rem; color:var(--text-dim); font-weight:700;">ENGINE INFO:</label>
+              <div style="background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:10px 14px; border-radius:10px; margin-top:6px; font-size:0.85rem; color:#fed7aa;">
+                🌸 Kokoro-82M Built-in Neural Voice (!${selectedStudioVoice})
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        const emotions = ["neutral", "happy", "excited", "calm", "confident", "angry", "sad", "sleepy", "surprised", "fearful"];
+        container.innerHTML = `
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div>
+              <label style="font-size:0.82rem; color:#fed7aa; font-weight:700;">INSTRUCT PROMPT (CosyVoice 2 / Personality):</label>
+              <input type="text" id="vp-instruct" value="${prof.instruct || 'speak in a natural clear tone'}" placeholder="e.g. speak in a bold booming radio announcer voice" style="margin-top:6px;">
+              <span style="font-size:0.75rem; color:var(--text-dim); margin-top:4px; display:block;">Defines this voice's custom persona, tone, accent, or speaking mood.</span>
+            </div>
+            <div class="grid-2">
+              <div>
+                <label style="font-size:0.8rem; color:var(--text-dim); font-weight:700;">Exaggeration (Chatterbox): <b id="val-vp-exagg">${prof.exaggeration || 0.95}</b></label>
+                <input type="range" id="vp-exaggeration" min="0" max="2" step="0.05" value="${prof.exaggeration || 0.95}" oninput="safeSetText('val-vp-exagg', this.value)" style="margin-top:6px;">
+              </div>
+              <div>
+                <label style="font-size:0.8rem; color:var(--text-dim); font-weight:700;">Temperature (Chatterbox): <b id="val-vp-temp">${prof.temperature || 1.15}</b></label>
+                <input type="range" id="vp-temperature" min="0.05" max="2" step="0.05" value="${prof.temperature || 1.15}" oninput="safeSetText('val-vp-temp', this.value)" style="margin-top:6px;">
+              </div>
+            </div>
+            <div class="grid-2">
+              <div>
+                <label style="font-size:0.8rem; color:var(--text-dim); font-weight:700;">Emotion Label (Qwen3):</label>
+                <select id="vp-emotion" style="margin-top:6px;">
+                  ${emotions.map(em => `<option value="${em}" ${prof.emotion === em ? 'selected' : ''}>${em.toUpperCase()}</option>`).join("")}
+                </select>
+              </div>
+              <div>
+                <label style="font-size:0.8rem; color:var(--text-dim); font-weight:700;">Default Speed Multiplier: <b id="val-vp-speed-c">${prof.speed || 1.0}x</b></label>
+                <input type="range" id="vp-speed" min="0.5" max="2.0" step="0.05" value="${prof.speed || 1.0}" oninput="safeSetText('val-vp-speed-c', this.value + 'x')" style="margin-top:6px;">
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    async function saveSelectedVoiceProfile() {
+      if (!selectedStudioVoice) return;
+      const prof = voiceProfiles[selectedStudioVoice] || {};
+      const inEl = safeEl("vp-instruct"), exEl = safeEl("vp-exaggeration"), tpEl = safeEl("vp-temperature"), emEl = safeEl("vp-emotion"), spEl = safeEl("vp-speed");
+
+      if (inEl) prof.instruct = inEl.value;
+      if (exEl) prof.exaggeration = parseFloat(exEl.value);
+      if (tpEl) prof.temperature = parseFloat(tpEl.value);
+      if (emEl) prof.emotion = emEl.value;
+      if (spEl) prof.speed = parseFloat(spEl.value);
+
+      await fetch(`/api/voices/${selectedStudioVoice}/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: prof })
+      });
+      alert(`✓ Saved personality profile for !${selectedStudioVoice.toUpperCase()}!`);
+      await loadVoiceProfiles();
+      renderStudioTable();
+    }
+
+    function filterStudioTable(cat) {
+      currentStudioCategory = cat;
+      const bCustom = safeEl("tab-btn-custom-voices");
+      const bKokoro = safeEl("tab-btn-kokoro-voices");
+      if (bCustom && bKokoro) {
+        bCustom.style.background = cat === "custom" ? "rgba(74,222,128,0.2)" : "rgba(255,255,255,0.08)";
+        bKokoro.style.background = cat === "kokoro" ? "rgba(56,189,248,0.2)" : "rgba(255,255,255,0.08)";
+      }
+      renderStudioTable();
+    }
+
+    function renderStudioTable() {
+      const tbody = safeEl("voice-studio-table");
+      if (!tbody) return;
+
+      const listToRender = currentStudioCategory === "custom" ? clonedVoicesList : kokoroVoicesList;
+      const isKokoro = currentStudioCategory === "kokoro";
+
+      tbody.innerHTML = listToRender.map(v => {
+        const vClean = v.toLowerCase();
+        const prof = voiceProfiles[vClean] || {};
+        const hasCustom = Boolean(prof.instruct || prof.emotion || prof.exaggeration || (prof.speed && prof.speed !== 1.0));
+
+        const detailBadge = isKokoro
+          ? `<span class="badge-pill" style="background:rgba(56,189,248,0.2); color:#38bdf8;">🌸 Built-in 82M</span>`
+          : `<span class="badge-pill" style="background:#334155; color:#fff;">MP3/WAV Reference</span>`;
+
+        const personaBadge = hasCustom
+          ? `<span class="badge-pill" style="background:rgba(244,63,94,0.25); color:#f43f5e; border:1px solid #f43f5e;">⚡ Custom Persona</span>`
+          : `<span class="badge-pill" style="background:#1e293b; color:#94a3b8;">Default</span>`;
+
+        return `
+          <tr>
+            <td><b>!${v}</b></td>
+            <td>${detailBadge}</td>
+            <td><span class="badge-pill" style="background:rgba(34,197,94,0.2);color:#4ade80;">✓ In-Memory</span></td>
+            <td>${personaBadge}</td>
+            <td style="display:flex; gap:6px;">
+              <button class="btn btn-secondary" style="padding:4px 10px; font-size:0.75rem;" onclick="selectVoiceForCustomization('${v}'); window.scrollTo({top: 150, behavior: 'smooth'});">⚙️ Customize</button>
+              <button class="btn btn-secondary" style="padding:4px 10px; font-size:0.75rem;" onclick="previewVoice('${v}')">▶ Preview</button>
+              <button class="btn btn-forge" style="padding:4px 10px; font-size:0.75rem;" onclick="benchmarkVoice('${v}')">⚡ Benchmark</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    async function loadVoices() {
+      try {
+        const res = await fetch("/api/voices");
+        const d = await res.json();
+        voicesList = d.voices || [];
+        clonedVoicesList = d.cloned_voices || voicesList.filter(v => !v.startsWith("af_") && !v.startsWith("am_") && !v.startsWith("bf_") && !v.startsWith("bm_") && !v.startsWith("zf_") && !v.startsWith("jm_"));
+        kokoroVoicesList = d.kokoro_voices || voicesList.filter(v => !clonedVoicesList.includes(v));
+
+        safeSetText("status-voices", `${clonedVoicesList.length} Custom | ${kokoroVoicesList.length} Kokoro`);
+        safeSetText("voice-count-tag", `${clonedVoicesList.length} custom voices`);
+        safeSetText("count-custom-tab", clonedVoicesList.length);
+        safeSetText("count-kokoro-tab", kokoroVoicesList.length);
+
+        const pills = safeEl("voice-pills");
+        if (pills) {
+          pills.innerHTML = "";
+          clonedVoicesList.forEach((v, idx) => {
+            const p = document.createElement("button");
+            p.className = `pill ${idx === 0 ? 'active' : ''}`;
+            p.textContent = `🎤 !${v}`;
+            p.onclick = () => {
+              document.querySelectorAll('.pill').forEach(el => el.classList.remove('active'));
+              p.classList.add('active');
+              const ta = safeEl('prompt-input');
+              if (ta) {
+                if (!ta.value.trim()) ta.value = `!${v} Hello everyone, thanks for joining the live stream!`;
+                else if (!ta.value.includes(`!${v}`)) ta.value += ` !${v} this is ${v}!`;
+              }
+            };
+            pills.appendChild(p);
+          });
+        }
+
+        await loadVoiceProfiles();
+
+        const cPicker = safeEl("studio-custom-voice-picker");
+        if (cPicker) {
+          cPicker.innerHTML = `<option value="">-- Custom Voices --</option>` + 
+            clonedVoicesList.map(v => `<option value="${v}">!${v}</option>`).join("");
+        }
+
+        const kPicker = safeEl("studio-kokoro-voice-picker");
+        if (kPicker) {
+          kPicker.innerHTML = `<option value="">-- Kokoro Voices --</option>` + 
+            kokoroVoicesList.map(v => `<option value="${v}">!${v}</option>`).join("");
+        }
+
+        const groupedSelects = [safeEl("stream-default-voice"), safeEl("t-voice"), safeEl("cmd-voice")];
+        const savedVoice = (localStorage.getItem("vf_stream_default_voice") || "swifty").toLowerCase();
+
+        groupedSelects.forEach(sel => {
+          if (!sel) return;
+          sel.innerHTML = `
+            <optgroup label="🎤 Custom Cloned Voices">
+              ${clonedVoicesList.map(v => `<option value="${v}" ${v.toLowerCase() === savedVoice ? 'selected' : ''}>!${v}</option>`).join("")}
+            </optgroup>
+            <optgroup label="🌸 Kokoro 54 Voices">
+              ${kokoroVoicesList.map(v => `<option value="${v}" ${v.toLowerCase() === savedVoice ? 'selected' : ''}>!${v}</option>`).join("")}
+            </optgroup>
+          `;
+        });
+
+        if (clonedVoicesList.length > 0 && !selectedStudioVoice) {
+          selectVoiceForCustomization(clonedVoicesList[0]);
+        }
+      } catch (err) {
+        console.error("loadVoices error", err);
+      }
+    }
+
+    async function refreshVoices() {
+      await fetch("/api/refresh", { method: "POST" });
+      loadVoices();
+      loadStudio();
+    }
+
+    async function generateSpeech() {
+      const ta = safeEl("prompt-input");
+      if (!ta || !ta.value.trim()) return;
+      const btn = safeEl("gen-btn");
+      if (btn) { btn.textContent = "Synthesizing…"; btn.disabled = true; }
+
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: ta.value.trim() })
+        });
+        if (!res.ok) throw new Error("Synthesis failed");
+
+        const fn = res.headers.get("X-Filename") || "output.wav";
+        const blob = await res.blob();
+        if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
+        audioBlobUrl = URL.createObjectURL(blob);
+
+        const player = safeEl("audio-player");
+        const saveLink = safeEl("save-link");
+        if (player) { player.src = audioBlobUrl; player.play(); }
+        if (saveLink) { saveLink.href = audioBlobUrl; saveLink.download = fn; }
+        safeSetText("out-filename", fn);
+      } catch (err) {
+        alert("Generation Error: " + err.message);
+      } finally {
+        if (btn) { btn.textContent = "🎙 Generate"; btn.disabled = false; }
+      }
+    }
+
+    function previewVoice(v) {
+      const phraseInput = safeEl("custom-test-phrase");
+      const phrase = phraseInput ? encodeURIComponent(phraseInput.value.trim()) : "";
+      const a = new Audio(`/api/voices/${v}/preview?phrase=${phrase}&t=${Date.now()}`);
+      currentActiveAudio = a;
+      a.volume = getNormalizedVolume();
+      a.play().then(() => setAudioUnlockedUI(true)).catch(err => console.log("Preview notice:", err));
+    }
+
+    async function benchmarkVoice(v) {
+      const phraseInput = safeEl("custom-test-phrase");
+      const phrase = phraseInput ? phraseInput.value : "";
+      safeSetText("bm-voice-title", `⚡ In-Memory Speed Benchmark: !${v}`);
+      openModal("benchmark-modal");
+
+      try {
+        const res = await fetch(`/api/voices/${v}/benchmark`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ test_phrase: phrase })
+        });
+        const data = await res.json();
+        safeSetText("bm-cold-ms", `${data.cold_encode_ms} ms`);
+        safeSetText("bm-hot-ms", `${data.hot_synth_ms} ms`);
+        safeSetText("bm-speedup", `${data.speedup} Faster`);
+        safeSetText("bm-rtf", `${data.rtf} (Real-Time Factor)`);
+      } catch (err) {
+        alert("Benchmark error: " + err.message);
+      }
+    }
+
+    async function encodeAllVoices() {
+      await fetch("/api/voices/encode-all", { method: "POST" });
+      alert("✓ All reference voices pre-encoded into high-speed memory cache!");
+      loadStudio();
+    }
+
+    async function loadStudio() {
+      await loadVoices();
+      filterStudioTable(currentStudioCategory);
+    }
+
+    async function loadActivity() {
+      try {
+        const res = await fetch("/api/timed-messages");
+        const d = await res.json();
+        const tbody = safeEl("timed-table");
+        if (tbody) {
+          tbody.innerHTML = (d.messages || []).map(m => `
+            <tr><td>${m.type === "interval" ? `Every ${m.interval_min}m` : `At ${m.time}`}</td><td>!${m.voice}</td><td>${m.message}</td><td>${m.last_run}</td><td>Active</td><td><button class="btn btn-danger" onclick="delTimed('${m.id}')">✕</button></td></tr>
+          `).join("");
+        }
+        const logFeed = safeEl("activity-log-feed");
+        if (logFeed) {
+          logFeed.innerHTML = (d.activity || []).map(a => `<div>[${a.time}] [${a.source}] ${a.text}</div>`).join("");
+        }
+      } catch (e) {}
+    }
+
+    async function saveTimedMessage() {
+      const tEl = safeEl("t-type"), vEl = safeEl("t-val"), cEl = safeEl("t-voice"), mEl = safeEl("t-msg");
+      if (!tEl || !vEl || !cEl || !mEl) return;
+      await fetch("/api/timed-messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: tEl.value, interval_min: vEl.value, time: vEl.value, voice: cEl.value.replace('!',''), message: mEl.value })
+      });
+      closeModal("timed-modal");
+      loadActivity();
+    }
+
+    async function delTimed(id) {
+      await fetch(`/api/timed-messages/${id}`, { method: "DELETE" });
+      loadActivity();
+    }
+
+    async function loadAudioLog() {
+      try {
+        const res = await fetch("/api/filters");
+        const d = await res.json();
+        const kw = safeEl("filter-keywords");
+        const wl = safeEl("filter-whitelist");
+        const chkBots = safeEl("chk-block-bots");
+        const chkKw = safeEl("chk-block-keywords");
+
+        if (kw) kw.value = (d.keywords || []).join(", ");
+        if (wl) wl.value = (d.allow_list || []).join(", ");
+        if (chkBots) chkBots.checked = d.block_bots === true;
+        if (chkKw) chkKw.checked = d.block_keywords_active === true;
+
+        const bList = safeEl("blocked-users-list");
+        if (bList) {
+          const users = d.blocked_users || [];
+          if (users.length === 0) {
+            bList.innerHTML = `<span style="font-size:0.8rem; color:var(--text-dim);">No users currently banned. Everyone (including trolls) is permitted to speak!</span>`;
+          } else {
+            bList.innerHTML = users.map(u => `
+              <div style="display:inline-flex; align-items:center; gap:6px; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.4); border-radius:30px; padding:4px 10px; font-size:0.8rem;">
+                <b style="color:#f87171;">${u}</b>
+                <button class="btn btn-success" style="padding:2px 8px; font-size:0.7rem; border-radius:20px;" onclick="unblockUser('${u}')">🟢 Allow</button>
+              </div>
+            `).join("");
+          }
+        }
+
+        const tbody = document.querySelector("#filtered-log-table tbody");
+        if (tbody) {
+          const logItems = d.log || [];
+          tbody.innerHTML = logItems.map(l => `
+            <tr>
+              <td>${l.time}</td>
+              <td><span class="badge-pill" style="background:#334155;color:#fff;">${l.source}</span></td>
+              <td><b style="color:#f43f5e;">${l.sender}</b></td>
+              <td>${l.message}</td>
+              <td><span style="color:#f87171;font-size:0.8rem;">${l.reason}</span></td>
+              <td>
+                <button class="btn btn-forge" style="padding:4px 10px; font-size:0.75rem;" onclick="restoreFiltered('${l.id}')">🔊 Restore</button>
+                <button class="btn btn-secondary" style="padding:4px 10px; font-size:0.75rem;" onclick="whitelistUser('${l.sender}')">⭐ Whitelist</button>
+                <button class="btn btn-danger" style="padding:4px 10px; font-size:0.75rem;" onclick="banUser('${l.sender}')">🚫 Ban</button>
+              </td>
+            </tr>
+          `).join("");
+        }
+      } catch (e) {}
+    }
+
+    async function saveFilterSettings() {
+      const kw = safeEl("filter-keywords") ? safeEl("filter-keywords").value.split(",").map(s => s.trim()).filter(Boolean) : [];
+      const wl = safeEl("filter-whitelist") ? safeEl("filter-whitelist").value.split(",").map(s => s.trim().toLowerCase()).filter(Boolean) : [];
+      const blockBots = safeEl("chk-block-bots") ? safeEl("chk-block-bots").checked : false;
+      const blockKw = safeEl("chk-block-keywords") ? safeEl("chk-block-keywords").checked : false;
+
+      await fetch("/api/filters/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywords: kw, allow_list: wl, block_bots: blockBots, block_keywords_active: blockKw })
+      });
+      alert("✓ Filter rules saved!");
+      loadAudioLog();
+    }
+
+    async function addManualBlockUser() {
+      const input = safeEl("new-block-username");
+      if (!input || !input.value.trim()) return;
+      const user = input.value.trim();
+      input.value = "";
+      await fetch("/api/filters/block-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user })
+      });
+      loadAudioLog();
+    }
+
+    async function unblockUser(username) {
+      await fetch("/api/filters/unblock-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username })
+      });
+      loadAudioLog();
+    }
+
+    async function banUser(username) {
+      await fetch("/api/filters/block-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username })
+      });
+      alert(`Banned ${username} from TTS speech.`);
+      loadAudioLog();
+    }
+
+    async function restoreFiltered(id) {
+      const res = await fetch(`/api/filters/restore/${id}`, { method: "POST" });
+      const d = await res.json();
+      alert(`✓ Restored message for ${d.whitelisted}!`);
+      loadAudioLog();
+    }
+
+    async function whitelistUser(username) {
+      await fetch("/api/filters/whitelist-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username })
+      });
+      alert(`✓ Added ${username} to Always-Allowed Whitelist!`);
+      loadAudioLog();
+    }
+
+    async function loadCommands() {
+      try {
+        const res = await fetch("/api/commands");
+        const d = await res.json();
+        const tbody = safeEl("commands-table");
+        if (tbody) {
+          tbody.innerHTML = (d || []).map(c => `<tr><td><b style="color:#f43f5e;">${c.name}</b></td><td>!${c.voice}</td><td>${c.response}</td><td>${c.cooldown}s</td><td>Active</td><td><button class="btn btn-danger" onclick="delCmd('${c.id}')">✕</button></td></tr>`).join("");
+        }
+      } catch (e) {}
+    }
+
+    async function saveCommand() {
+      const nEl = safeEl("cmd-name"), vEl = safeEl("cmd-voice"), rEl = safeEl("cmd-resp"), cEl = safeEl("cmd-cd");
+      if (!nEl || !vEl || !rEl) return;
+      await fetch("/api/commands", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nEl.value, voice: vEl.value.replace('!',''), response: rEl.value, cooldown: cEl ? cEl.value : 10 })
+      });
+      closeModal("cmd-modal");
+      loadCommands();
+    }
+
+    async function delCmd(id) {
+      await fetch(`/api/commands/${id}`, { method: "DELETE" });
+      loadCommands();
+    }
+
+    async function loadKokoroLanguages() {
+      try {
+        const res = await fetch("/api/settings/kokoro-languages");
+        const d = await res.json();
+        const grid = safeEl("kokoro-languages-grid");
+        if (!grid) return;
+
+        const langs = d.languages || {};
+        const enabled = d.enabled || {};
+
+        grid.innerHTML = Object.entries(langs).map(([k, info]) => {
+          const isChecked = enabled[k] === true;
+          return `
+            <label style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.04); border:1px solid var(--glass-border); padding:8px 12px; border-radius:8px; font-size:0.82rem; cursor:pointer;">
+              <input type="checkbox" id="chk-lang-${k}" ${isChecked ? 'checked' : ''} style="cursor:pointer;">
+              <span>${info.flag} <b>${info.name}</b></span>
+            </label>
+          `;
+        }).join("");
+      } catch (e) {
+        console.error("loadKokoroLanguages error:", e);
+      }
+    }
+
+    async function saveKokoroLanguages() {
+      const grid = safeEl("kokoro-languages-grid");
+      if (!grid) return;
+
+      const checkboxes = grid.querySelectorAll("input[type='checkbox']");
+      const newSettings = {};
+      checkboxes.forEach(chk => {
+        const key = chk.id.replace("chk-lang-", "");
+        newSettings[key] = chk.checked;
+      });
+
+      await fetch("/api/settings/kokoro-languages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ languages: newSettings })
+      });
+
+      alert("✓ Kokoro language filters saved!");
+      await loadVoices();
+      await loadKokoroLanguages();
+    }
+
+    async function loadModelStatus() {
+      try {
+        const res = await fetch("/api/models/status");
+        const d = await res.json();
+        const grid = safeEl("models-status-grid");
+        if (!grid) return;
+        const models = d.models || {};
+        grid.innerHTML = Object.values(models).map(m => {
+          const badge = m.installed 
+            ? `<span class="badge-pill" style="background:rgba(34,197,94,0.2); color:#4ade80;">✓ Installed (${m.size_mb > 0 ? m.size_mb + ' MB' : m.approx_size})</span>`
+            : `<span class="badge-pill" style="background:rgba(239,68,68,0.2); color:#f87171;">Not Installed (${m.approx_size})</span>`;
+          
+          const activeTag = m.active 
+            ? `<span style="font-size:0.7rem; color:#38bdf8; font-weight:700; margin-left:6px;">⚡ ACTIVE</span>` 
+            : '';
+
+          const btn = m.installed
+            ? `<button class="btn btn-danger" style="padding:4px 10px; font-size:0.72rem;" onclick="deleteModel('${m.id}')" ${m.id === currentEngine ? 'disabled title="Switch engine first"' : ''}>🗑️ Remove</button>`
+            : `<button class="btn btn-forge" style="padding:4px 10px; font-size:0.72rem;" onclick="downloadModel('${m.id}')">⬇️ Download</button>`;
+
+          return `
+            <div style="background:rgba(0,0,0,0.25); border:1px solid var(--glass-border); padding:12px; border-radius:10px; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
+              <div>
+                <div style="font-weight:700; font-size:0.85rem; display:flex; align-items:center; justify-content:space-between;">
+                  <span>${m.name} ${activeTag}</span>
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">${m.description}</div>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.05); padding-top:6px;">
+                ${badge}
+                ${btn}
+              </div>
+            </div>
+          `;
+        }).join("");
+      } catch (e) {}
+    }
+
+    async function deleteModel(id) {
+      if (!confirm(`Are you sure you want to remove model weights for '${id}' to free disk space?`)) return;
+      try {
+        const res = await fetch(`/api/models/${id}`, { method: "DELETE" });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.detail || "Delete failed");
+        alert(`✓ Removed model '${id}' from disk.`);
+        loadModelStatus();
+      } catch (e) {
+        alert("Delete notice: " + e.message);
+      }
+    }
+
+    async function downloadModel(id) {
+      alert(`⬇️ Started background download for '${id}'. It will download and cache automatically.`);
+      await fetch(`/api/models/${id}/download`, { method: "POST" });
+      setTimeout(loadModelStatus, 4000);
+    }
+
+    let ws;
+    function connectLiveWS() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}/ws/live`);
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === "init" || msg.type === "reading_status") {
+            setReadingUI(msg.reading);
+          } else if (msg.type === "audio_ready") {
+            enqueueMasterSpeech(msg.audio_url, msg.text);
+            const player = safeEl("audio-player");
+            const saveLink = safeEl("save-link");
+            if (player) player.src = msg.audio_url;
+            if (saveLink) { saveLink.href = msg.audio_url; saveLink.download = msg.filename; }
+            safeSetText("out-filename", msg.filename);
+          } else if (msg.type === "chat_message") {
+            const uFeed = safeEl("unified-feed");
+            const cFeed = safeEl("chat-feed");
+            const plat = (msg.data.platform || "Chat").toUpperCase();
+            const colorMap = { "RUMBLE": "#85c742", "KICK": "#53fc18", "X.COM": "#38bdf8", "BLAZE": "#f97316", "TWITCH": "#9146ff", "YOUTUBE": "#ef4444" };
+            const tagColor = colorMap[plat] || "#38bdf8";
+
+            const row = document.createElement("div");
+            row.style = `background:rgba(0,0,0,0.25); border-left:3px solid ${tagColor}; padding:8px 12px; border-radius:8px; font-size:0.85rem;`;
+            row.innerHTML = `<span style="font-weight:800; color:${tagColor}; font-size:0.75rem; margin-right:6px;">[${plat}]</span> <b style="color:${msg.data.color || '#38bdf8'}">${msg.data.sender}:</b> <span>${msg.data.raw_message}</span>`;
+            if (uFeed) uFeed.prepend(row);
+            if (cFeed) cFeed.prepend(row.cloneNode(true));
+          }
+        } catch (err) {}
+      };
+      ws.onclose = () => setTimeout(connectLiveWS, 3000);
+    }
+
+    connectLiveWS();
+    loadVoices();
+    loadEngineSettings();
+    switchTab(localStorage.getItem("activeTab") || "tab-sources");
+  </script>
+</body>
+</html>
