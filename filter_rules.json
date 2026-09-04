@@ -1,0 +1,22 @@
+{
+  "blocked_users": [],
+  "block_keywords": [
+    "spam",
+    "giveaway",
+    "free followers",
+    "click here",
+    "discord.gg/scam"
+  ],
+  "allow_list": [
+    "littlesaltybear",
+    "saltylittlebear",
+    "coomer",
+    "ron",
+    "swifty",
+    "FoodistFemboy"
+  ],
+  "min_length": 1,
+  "max_length": 500,
+  "block_bots": false,
+  "block_keywords_active": true
+}

@@ -1,0 +1,35 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+venv/
+env/
+
+# VoiceForge runtime & large footprints
+runtime/
+output/*.wav
+output/*.mp3
+browser_profile/
+pretrained_models/
+*.bin
+*.pt
+*.safetensors
+*.onnx
+
+# Build artifacts (C++ / Windows / CMake)
+build/
+bin/
+obj/
+*.exe
+*.res
+*.obj
+*.lib
+*.dll
+
+# IDE / OS metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

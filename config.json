@@ -1,0 +1,85 @@
+{
+  "stream_reading": true,
+  "stream": {
+    "default_voice": "swifty",
+    "read_mode": "all"
+  },
+  "engine": {
+    "active": "cosyvoice2",
+    "device": "cuda",
+    "compile": false
+  },
+  "memory": {
+    "tier": "vram",
+    "max_cached_voices": 50
+  },
+  "test_phrase": "Hello! This is [voice] testing in-memory speed on VoiceForge.",
+  "engine_params": {
+    "chatterbox_nano": {
+      "exaggeration": 0.95,
+      "cfg_weight": 0.5,
+      "temperature": 1.15
+    },
+    "cosyvoice2": {
+      "instruct": "speak in a natural clear tone",
+      "speed": 1.0,
+      "streaming": false
+    },
+    "qwen3_tts": {
+      "emotion": "neutral",
+      "speed": 1.0,
+      "language": "auto"
+    },
+    "kokoro": {
+      "speed": 1.0
+    }
+  },
+  "kokoro_languages": {
+    "en_us": true,
+    "en_gb": true,
+    "es": false,
+    "fr": false,
+    "it": false,
+    "ja": false,
+    "pt": false,
+    "hi": false,
+    "zh": false
+  },
+  "audio": {
+    "volume": 85,
+    "default_speed": 1.0,
+    "output_dir": "output/",
+    "muted": false
+  },
+  "reader": {
+    "color": "#00FF00",
+    "font": "Impact",
+    "size": 32,
+    "text_color": "#FFFFFF"
+  },
+  "commands": [
+    {
+      "id": "c1",
+      "name": "!hello",
+      "voice": "ron",
+      "response": "Hey everyone, welcome to the live stream!",
+      "cooldown": 10,
+      "enabled": true
+    }
+  ],
+  "sources": [],
+  "voice_profiles": {},
+  "timed_messages": [
+    {
+      "id": "t1",
+      "type": "interval",
+      "interval_min": 10,
+      "voice": "ron",
+      "message": "!ron Welcome everyone to the stream! Enjoy the broadcast.",
+      "enabled": true,
+      "next_fire": 1788410000.0,
+      "last_run": "Never"
+    }
+  ],
+  "event_triggers": []
+}
