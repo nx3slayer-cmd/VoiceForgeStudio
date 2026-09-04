@@ -128,12 +128,19 @@ class ChatterboxNanoEngine(BaseTTSEngine):
                 dev = self.device
                 if dev == "cuda" and not torch.cuda.is_available():
                     dev = "cpu"
-                logger.info(f"[Chatterbox-Turbo] Initializing model on {dev}...")
-                self.model = ChatterboxTurboTTS.from_pretrained(device=dev)
+
+                local_ckpt = BASE_DIR / "pretrained_models" / "chatterbox-turbo"
+                if local_ckpt.exists() and (local_ckpt / "t3_turbo_v1.safetensors").exists():
+                    logger.info(f"[Chatterbox-Turbo] Loading local model weights from {local_ckpt} on {dev}...")
+                    self.model = ChatterboxTurboTTS.from_local(ckpt_dir=str(local_ckpt), device=dev)
+                else:
+                    logger.info(f"[Chatterbox-Turbo] Loading pre-trained model on {dev}...")
+                    self.model = ChatterboxTurboTTS.from_pretrained(device=dev)
+
                 self.sr = getattr(self.model, "sr", 24000)
-                logger.info("✓ Chatterbox-Turbo ready for zero-shot voice cloning.")
+                logger.info("✓ Chatterbox-Turbo model ready for zero-shot voice cloning.")
             except Exception as e:
-                logger.warning(f"Chatterbox-Turbo initialization warning: {e}")
+                logger.error(f"Chatterbox-Turbo failed to load: {e}")
 
     def generate(self, text: str, voice_name: str, params: Optional[Dict[str, Any]] = None) -> np.ndarray:
         params = params or {}
@@ -149,8 +156,11 @@ class ChatterboxNanoEngine(BaseTTSEngine):
                     ref_path = cand
                     break
 
+        if self.model is None:
+            self.init_model()
+
         if self.model is not None and ref_path and ref_path.exists():
-            logger.info(f"[Chatterbox Clone] Synthesizing '{voice_name}' using reference: {ref_path.name}")
+            logger.info(f"[Chatterbox Clone] Synthesizing '{voice_name}' using custom reference audio: {ref_path.name}")
             wav = self.model.generate(
                 text=text,
                 audio_prompt_path=str(ref_path),
@@ -161,9 +171,7 @@ class ChatterboxNanoEngine(BaseTTSEngine):
                 wav = wav.squeeze().float().cpu().numpy()
             return wav.astype(np.float32)
 
-        # Fallback to Kokoro only if reference audio or model is absent
-        logger.warning(f"Chatterbox model or reference for '{voice_name}' not found. Falling back to Kokoro.")
-        return kokoro_engine.generate(text, "af_heart", {"speed": speed})
+        raise RuntimeError(f"Chatterbox could not generate voice '{voice_name}'. Reference file missing or model uninitialized.")
 
 class CosyVoice2Engine(BaseTTSEngine):
     def __init__(self, device: str = "cuda"):
@@ -179,8 +187,10 @@ class CosyVoice2Engine(BaseTTSEngine):
                 if model_dir.exists():
                     self.model = CosyVoice2(str(model_dir))
                     logger.info("✓ CosyVoice 2 initialized successfully.")
+                else:
+                    logger.warning("CosyVoice 2 weights not found in pretrained_models/CosyVoice2-0.5B.")
             except Exception as e:
-                logger.info(f"CosyVoice 2 weights not loaded ({e}).")
+                logger.info(f"CosyVoice 2 weights notice: {e}")
 
     def generate(self, text: str, voice_name: str, params: Optional[Dict[str, Any]] = None) -> np.ndarray:
         params = params or {}
@@ -194,7 +204,9 @@ class CosyVoice2Engine(BaseTTSEngine):
             output = self.model.inference_instruct(text, instruct, ref_wav, stream=False, speed=speed)
             return output["tts_speech"].numpy().flatten().astype(np.float32)
 
-        return kokoro_engine.generate(text, "af_heart", {"speed": speed})
+        # Fallback to Chatterbox if CosyVoice weights are absent
+        logger.warning(f"CosyVoice 2 not loaded. Routing '{voice_name}' to Chatterbox-Turbo.")
+        return engine_mgr.engines["chatterbox_nano"].generate(text, voice_name, params)
 
 class Qwen3Engine(BaseTTSEngine):
     def __init__(self, device: str = "cuda"):
@@ -203,7 +215,7 @@ class Qwen3Engine(BaseTTSEngine):
         self.sr = 24000
 
     def generate(self, text: str, voice_name: str, params: Optional[Dict[str, Any]] = None) -> np.ndarray:
-        return kokoro_engine.generate(text, "af_heart", params or {})
+        return engine_mgr.engines["chatterbox_nano"].generate(text, voice_name, params)
 
 class EngineManager:
     def __init__(self):
@@ -231,9 +243,9 @@ class EngineManager:
 
     def init_engines(self):
         self.load_settings_from_config()
-        for name, eng in self.engines.items():
-            if hasattr(eng, "init_model"):
-                eng.init_model()
+        active = self.get_active()
+        if hasattr(active, "init_model"):
+            active.init_model()
         self.reencode_all_voices()
 
     def get_active(self) -> BaseTTSEngine:
@@ -242,6 +254,9 @@ class EngineManager:
     def switch_engine(self, engine_name: str):
         if engine_name in self.engines:
             self.active_engine_name = engine_name
+            active = self.get_active()
+            if hasattr(active, "init_model"):
+                active.init_model()
             self.reencode_all_voices()
             self.save_settings_to_config()
             logger.info(f"Switched active custom cloning engine to: {engine_name}")
@@ -259,14 +274,13 @@ class EngineManager:
                 if hasattr(eng, "encode_voice"):
                     eng.encode_voice(name, f, tier=self.memory_tier)
 
-        logger.info(f"✓ Registered {len(found)} custom reference voices across engines.")
+        logger.info(f"✓ Registered {len(found)} custom reference voices.")
 
     def generate_multi(self, text: str, volume: float = 0.85) -> Tuple[np.ndarray, int]:
         segments = parse_segments(text)
         target_sr = 24000
         combined_audio = []
 
-        # Read streamer chosen default voice
         chosen_default = "swifty"
         if CONFIG_FILE.exists():
             try:
@@ -286,13 +300,13 @@ class EngineManager:
             if v_clean == "default" or not v_clean:
                 v_clean = chosen_default
 
-            # CASE 1: Kokoro built-in voice requested
+            # CASE 1: Kokoro built-in voice requested (e.g. !heart, !bella, !adam)
             if v_clean in kokoro_engine.voice_audio_cache or v_clean in KOKORO_VOICES:
                 p = {"speed": speed_override if speed_override is not None else 1.0}
                 seg_wav = kokoro_engine.generate(seg_text, v_clean, p)
                 seg_sr = kokoro_engine.sr
             else:
-                # CASE 2: Custom voice requested -> Route to Custom Cloning Engine
+                # CASE 2: Custom Cloned Voice requested (e.g. !apple, !caged, !swifty)
                 act_eng = self.get_active()
                 p = self.engine_params.get(self.active_engine_name, {}).copy()
 

@@ -15,23 +15,23 @@
   },
   "test_phrase": "Hello! This is [voice] testing in-memory speed on VoiceForge.",
   "engine_params": {
-    "kokoro": {
-      "speed": 1.0
+    "chatterbox_nano": {
+      "exaggeration": 0.95,
+      "cfg_weight": 0.5,
+      "temperature": 1.15
     },
     "cosyvoice2": {
       "instruct": "speak in a natural clear tone",
       "speed": 1.0,
       "streaming": false
     },
-    "chatterbox_nano": {
-      "exaggeration": 0.95,
-      "cfg_weight": 0.5,
-      "temperature": 1.15
-    },
     "qwen3_tts": {
       "emotion": "neutral",
       "speed": 1.0,
       "language": "auto"
+    },
+    "kokoro": {
+      "speed": 1.0
     }
   },
   "kokoro_languages": {
