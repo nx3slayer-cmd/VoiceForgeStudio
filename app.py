@@ -49,7 +49,7 @@ BASE_DIR = Path(__file__).resolve().parent
 CONFIG_FILE = BASE_DIR / "config.json"
 
 DEFAULT_CONFIG = {
-    "stream_reading": true,
+    "stream_reading": True,
     "stream": {"default_voice": "swifty", "read_mode": "all"},
     "engine": {"active": "cosyvoice2", "device": "cuda" if torch.cuda.is_available() else "cpu", "compile": False},
     "memory": {"tier": "vram" if torch.cuda.is_available() else "ram", "max_cached_voices": 50},
